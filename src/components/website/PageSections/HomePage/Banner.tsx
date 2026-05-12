@@ -160,7 +160,7 @@ export default function Banner() {
       className="relative w-full min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto"
       onClick={() => textareaRef.current?.focus()}
     >
-      <section className="w-full max-w-[900px] px-6 relative z-10 flex flex-col pt-22 pb-40">
+      <section className="w-full max-w-[900px] px-6 relative z-10 flex flex-col pt-20 pb-40">
         <textarea
           ref={textareaRef}
           value={text}
@@ -170,7 +170,7 @@ export default function Banner() {
           className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:text-[#aaa] dark:placeholder:text-[#444] no-scrollbar overflow-hidden transition-all duration-300 min-h-[50vh]"
           style={{
             fontFamily: fontStyle === "classic" ? "var(--font-lora), serif" : fontStyle === "modern" ? "var(--font-cousine), monospace" : "var(--font-ibm-plex-sans), sans-serif",
-            fontSize: fontStyle === "classic" ? "22px" : fontStyle === "modern" ? "18px" : "20px"
+            fontSize: fontStyle === "classic" ? "20px" : fontStyle === "modern" ? "20px" : "22px"
           }}
         />
       </section>

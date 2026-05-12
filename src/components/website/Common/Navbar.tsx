@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import {
-  AlignLeft, MoreHorizontal, Moon, Sun, Type, Maximize2,
+import { 
+  AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
-  Pin, PinOff, Edit3, MoreVertical
+  Pin, PinOff, Edit3, MoreVertical, ChevronRight
 } from "lucide-react";
 
 const DB_NAME = "EditorDB";
@@ -18,6 +18,23 @@ interface EditorDocument {
   lastModified: number;
   pinned?: boolean;
 }
+
+const THEMES = [
+  { id: "light",    name: "Light Mode",    color: "#ffffff" },
+  { id: "dark",     name: "Dark Mode",     color: "#121212" },
+  { id: "sepia",    name: "Sepia Paper",   color: "#f4ecd8" },
+  { id: "midnight", name: "Midnight Sky",  color: "#0f172a" },
+  { id: "forest",   name: "Forest Deep",   color: "#111b1a" },
+  { id: "ocean",    name: "Ocean Depths",  color: "#061e26" },
+  { id: "rose",     name: "Rose Noir",     color: "#1c1114" },
+  { id: "coffee",   name: "Coffee House",  color: "#1a1614" },
+];
+
+const FONTS = [
+  { id: "draft", name: "Draft Sans" },
+  { id: "classic", name: "Classic Serif" },
+  { id: "modern", name: "Modern Mono" },
+];
 
 // --- DATABASE HELPERS ---
 const openDB = (): Promise<IDBDatabase> => {
@@ -112,9 +129,8 @@ const ShortcutHint = ({ children }: { children: string }) => (
 );
 
 export default function Navbar() {
-  const [theme, setTheme] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("theme") || "light" : "light"));
+  const [theme, setTheme] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("app-theme") || "light" : "light"));
   const [showCounter, setShowCounter] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("show-counter") !== "false" : true));
-  const [showThemeIcon, setShowThemeIcon] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("show-theme-icon") !== "false" : true));
   const [currentFont, setCurrentFont] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "draft" : "draft"));
 
   const [wordCount, setWordCount] = useState(0);
@@ -122,11 +138,11 @@ export default function Navbar() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
-  const [menuView, setMenuView] = useState("main");
+  const [menuView, setMenuView] = useState("main"); 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string }>({ isOpen: false, id: "", currentTitle: "" });
   const [newTitleValue, setNewTitleValue] = useState("");
-
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const syncChannel = useRef<BroadcastChannel | null>(null);
@@ -161,7 +177,6 @@ export default function Navbar() {
       await removeDocFromDB(id);
       if (activeDocId === id) localStorage.removeItem("active_doc_id");
       setActiveMenuId(null);
-      // Pass true to keep the sidebar open after deletion
       refreshDocs(true);
     } catch (err) { console.error(err); }
   };
@@ -170,7 +185,7 @@ export default function Navbar() {
     try {
       await updateDocInDB(id, { pinned: !currentPinned });
       setActiveMenuId(null);
-      refreshDocs(true); // Keep sidebar open
+      refreshDocs(true);
     } catch (err) { console.error(err); }
   };
 
@@ -185,7 +200,7 @@ export default function Navbar() {
       try {
         await updateDocInDB(renameModal.id, { title: newTitleValue.trim() });
         setRenameModal({ isOpen: false, id: "", currentTitle: "" });
-        refreshDocs(true); // Keep sidebar open
+        refreshDocs(true);
       } catch (err) { console.error(err); }
     } else {
       setRenameModal({ isOpen: false, id: "", currentTitle: "" });
@@ -196,39 +211,51 @@ export default function Navbar() {
     setActiveDocId(id);
     localStorage.setItem("active_doc_id", id);
     syncChannel.current?.postMessage({ type: 'SWITCH_DOC', id });
-
-    if (!keepSidebarOpen) {
-      setShowSidebar(false);
-    }
+    if (!keepSidebarOpen) setShowSidebar(false); 
     refreshDocs(keepSidebarOpen);
   };
 
-  const toggleTheme = (e: React.MouseEvent) => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    if (!document.startViewTransition) {
+  const changeTheme = (newTheme: string, e?: React.MouseEvent) => {
+    const performChange = () => {
       setTheme(newTheme);
-      updateThemeDOM(newTheme);
+      localStorage.setItem("app-theme", newTheme);
+      
+      if (newTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.documentElement.removeAttribute('data-theme');
+      } else if (newTheme === 'light') {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.setAttribute('data-theme', newTheme);
+      }
+    };
+
+    if (!document.startViewTransition || !e) {
+      performChange();
+      setShowDropdown(false);
+      setMenuView("main");
       return;
     }
+
     const x = e.clientX;
     const y = e.clientY;
     const endRadius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+
     const transition = document.startViewTransition(() => {
-      setTheme(newTheme);
-      updateThemeDOM(newTheme);
+      performChange();
     });
+
     transition.ready.then(() => {
       document.documentElement.animate(
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
         { duration: 500, easing: "ease-in-out", pseudoElement: "::view-transition-new(root)" }
       );
     });
-  };
 
-  const updateThemeDOM = (newTheme: string) => {
-    localStorage.setItem("theme", newTheme);
-    if (newTheme === "dark") document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
+    setShowDropdown(false);
+    setMenuView("main");
   };
 
   const changeFont = (font: string) => {
@@ -240,10 +267,14 @@ export default function Navbar() {
   };
 
   useEffect(() => {
-    if (theme === "dark") document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
+    // Initial theme apply
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (theme !== 'light') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    
     const dataTimer = setTimeout(() => refreshDocs(showSidebar), 0);
-
     const handleWordCount = (e: Event) => setWordCount((e as CustomEvent).detail || 0);
     const handleTitleUpdate = () => refreshDocs(showSidebar);
 
@@ -279,7 +310,7 @@ export default function Navbar() {
     window.addEventListener("title-updated", handleTitleUpdate);
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
-
+    
     return () => {
       clearTimeout(dataTimer);
       window.removeEventListener("word-count-update", handleWordCount);
@@ -292,24 +323,25 @@ export default function Navbar() {
   return (
     <>
       {showSidebar && <div className="fixed inset-0 bg-black/5 dark:bg-black/20 backdrop-blur-[2px] z-[90] transition-all duration-300" />}
-
+      
       {/* Rename Modal */}
       {renameModal.isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md" onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} />
-          <div className="relative w-full max-w-[320px] bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
-            <h3 className="text-[14px] font-bold opacity-30 mb-4 uppercase tracking-widest">Rename Draft</h3>
+          <div className="relative w-full max-w-[320px] rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200" style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}>
+            <h3 className="text-[14px] font-bold opacity-30 mb-4 uppercase tracking-widest" style={{ color: "var(--editor-text)" }}>Rename Draft</h3>
             <input
               autoFocus
               type="text"
               value={newTitleValue}
               onChange={(e) => setNewTitleValue(e.target.value)}
-              className="w-full bg-black/5 dark:bg-white/5 border-none outline-none px-4 py-3 rounded-xl text-[14px] text-black dark:text-white mb-6 focus:ring-1 focus:ring-black/10 dark:focus:ring-white/10"
+              className="w-full border-none outline-none px-4 py-3 rounded-xl text-[14px] mb-6"
+              style={{ background: "color-mix(in srgb, var(--editor-text) 6%, transparent)", color: "var(--editor-text)" }}
               placeholder="Enter new title..."
             />
             <div className="flex gap-3">
-              <button onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} className="flex-1 py-3 text-[13px] font-medium text-[#666] hover:text-black dark:hover:text-white transition-colors border hover:border-[#ddd] rounded-xl cursor-pointer">Cancel</button>
-              <button onClick={handleSaveRename} className="flex-1 py-3 bg-black dark:bg-white text-white dark:text-black text-[13px] font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer">Save</button>
+              <button onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} className="flex-1 py-3 text-[13px] font-medium rounded-xl cursor-pointer transition-colors hover:opacity-80" style={{ border: "1px solid var(--border-color)", color: "var(--editor-text)" }}>Cancel</button>
+              <button onClick={handleSaveRename} className="flex-1 py-3 text-[13px] font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer" style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}>Save</button>
             </div>
           </div>
         </div>
@@ -318,54 +350,65 @@ export default function Navbar() {
       <div ref={sidebarRef} className={`fixed top-0 left-0 h-full w-[280px] bg-[var(--editor-bg)] border-r border-[var(--border-color)] z-[100] transform transition-transform duration-300 ease-out shadow-2xl ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full p-6">
           <div className="flex items-center justify-between mb-10">
-            <span className="text-[14px] font-bold tracking-widest uppercase opacity-40">Blank Page</span>
-            <button onClick={() => setShowSidebar(false)} className="text-[#666] hover:text-black dark:hover:text-white transition-colors cursor-pointer">
+            <span className="text-[14px] font-bold tracking-widest uppercase opacity-40" style={{ color: "var(--editor-text)" }}>Blank Page</span>
+            <button onClick={() => setShowSidebar(false)} className="transition-colors cursor-pointer opacity-50 hover:opacity-100" style={{ color: "var(--editor-text)" }}>
               <X size={20} strokeWidth={1.5} />
             </button>
           </div>
 
-          <button onClick={() => handleCreateNewDoc()} className="flex items-center justify-center gap-3 w-full py-3.5 mb-10 rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.03] dark:bg-white/[0.03] text-[14px] font-semibold text-black dark:text-white transition-all hover:bg-black/[0.08] dark:hover:bg-white/[0.08] active:scale-[0.98] cursor-pointer group">
+          <button onClick={() => handleCreateNewDoc()} className="flex items-center justify-center gap-3 w-full py-3.5 mb-10 rounded-xl text-[14px] font-semibold transition-all active:scale-[0.98] cursor-pointer group" style={{ border: "1px solid var(--border-color)", background: "var(--accent-color)10", color: "var(--editor-text) " }}>
             <Plus size={18} className="opacity-60 group-hover:opacity-100 transition-opacity" /> New Document
           </button>
 
           <div className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1 pr-2">
             <div className="flex items-center justify-between px-4 mb-4">
-              <span className="text-[14px] font-bold opacity-30">Active Tabs</span>
+              <span className="text-[14px] font-bold opacity-30" style={{ color: "var(--editor-text)" }}>Active Tabs</span>
             </div>
             {documents.map((doc) => (
-              <div key={doc.id} className="group relative flex items-center mb-2 doc-menu-container">
-                <button onClick={() => handleSwitchDoc(doc.id)} className={`flex items-start gap-3 px-4 py-3 rounded-xl text-[14px] transition-all text-left flex-1 min-w-0 pr-12 cursor-pointer ${activeDocId === doc.id ? 'bg-black/5 dark:bg-white/5 text-black dark:text-white font-medium' : 'text-[#666] hover:bg-black/[0.02] dark:hover:bg-white/[0.02] hover:text-black dark:hover:text-white'}`}>
-                  <FileText size={16} className={`shrink-0 mt-0.5 ${activeDocId === doc.id ? 'opacity-100 text-black dark:text-white' : 'opacity-30 group-hover:opacity-100'}`} />
+              <div key={doc.id} className="group relative flex items-center mb-1 doc-menu-container">
+                <button
+                  onClick={() => handleSwitchDoc(doc.id)}
+                  className="flex items-start gap-3 px-4 py-3 rounded-xl text-[14px] transition-all text-left flex-1 min-w-0 pr-12 cursor-pointer"
+                  style={{
+                    background: activeDocId === doc.id ? "color-mix(in srgb, var(--editor-text) 6%, transparent)" : "transparent",
+                    color: activeDocId === doc.id ? "var(--editor-text)" : "color-mix(in srgb, var(--editor-text) 50%, transparent)",
+                    fontWeight: activeDocId === doc.id ? 500 : 400,
+                  }}
+                >
+                  <FileText size={16} className="shrink-0 mt-0.5" style={{ opacity: activeDocId === doc.id ? 1 : 0.35 }} />
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="truncate flex-1 overflow-hidden whitespace-nowrap">{doc.title}</span>
-                      {doc.pinned && <Pin size={10} className="text-black dark:text-white opacity-40 fill-current" />}
+                      {doc.pinned && <Pin size={10} className="opacity-40 fill-current" style={{ color: "var(--accent-color)" }} />}
                     </div>
                     <span className="text-[10px] opacity-40 mt-0.5 flex items-center gap-1">
                       <Clock size={10} /> {formatTime(doc.lastModified)}
                     </span>
                   </div>
-                  {activeDocId === doc.id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-black dark:bg-white rounded-r-full" />}
+                  {activeDocId === doc.id && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full" style={{ background: "var(--accent-color)" }} />
+                  )}
                 </button>
 
                 <div className="absolute right-2 flex items-center gap-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === doc.id ? null : doc.id); }}
-                    className={`p-2 text-[#666] hover:text-black dark:hover:text-white transition-all rounded-lg hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer ${activeMenuId === doc.id ? 'opacity-100 bg-black/5 dark:bg-white/5' : 'opacity-0 group-hover:opacity-100'}`}
+                    className={`p-2 transition-all rounded-lg cursor-pointer ${activeMenuId === doc.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    style={{ color: "var(--editor-text)", background: activeMenuId === doc.id ? "color-mix(in srgb, var(--editor-text) 6%, transparent)" : "transparent" }}
                   >
                     <MoreVertical size={14} />
                   </button>
 
                   {activeMenuId === doc.id && (
-                    <div className="absolute right-full top-8 mr-2 w-44 bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl py-1.5 z-[110] animate-in fade-in zoom-in slide-in-from-right-2 duration-200">
-                      <button onClick={() => handleTogglePin(doc.id, !!doc.pinned)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors cursor-pointer">
+                    <div className="absolute right-full top-8 mr-2 w-44 rounded-xl shadow-2xl py-1.5 z-[110] animate-in fade-in zoom-in slide-in-from-right-2 duration-200" style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}>
+                      <button onClick={() => handleTogglePin(doc.id, !!doc.pinned)} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
                         {doc.pinned ? <><PinOff size={14} className="opacity-60" /> Unpin</> : <><Pin size={14} className="opacity-60" /> Pin to top</>}
                       </button>
-                      <button onClick={() => handleOpenRenameModal(doc.id, doc.title)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors cursor-pointer">
+                      <button onClick={() => handleOpenRenameModal(doc.id, doc.title)} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
                         <Edit3 size={14} className="opacity-60" /> Rename
                       </button>
-                      <div className="h-[1px] bg-[var(--border-color)] my-1" />
-                      <button onClick={() => handleDeleteDoc(doc.id)} className="w-full text-left px-4 py-2 text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 transition-colors cursor-pointer">
+                      <div className="h-[1px] my-1" style={{ background: "var(--border-color)" }} />
+                      <button onClick={() => handleDeleteDoc(doc.id)} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer text-red-500 hover:opacity-80">
                         <Trash2 size={14} className="opacity-60" /> Delete
                       </button>
                     </div>
@@ -387,42 +430,57 @@ export default function Navbar() {
         <div className="flex items-center gap-6 text-[#666] md:pointer-events-auto">
           {showCounter && <span className="text-[13px] font-medium tracking-tight opacity-70 select-none">{wordCount} words</span>}
           <div className="flex items-center gap-5 relative">
-            {showThemeIcon && (
-              <button onClick={toggleTheme} className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer">
-                {theme === "light" ? <Moon size={19} strokeWidth={1.5} /> : <Sun size={19} strokeWidth={1.5} />}
-              </button>
-            )}
-
             <div className="relative" ref={dropdownRef}>
               <button onClick={() => setShowDropdown(!showDropdown)} className="hover:text-black dark:hover:text-white transition-colors duration-200">
                 <MoreHorizontal size={19} strokeWidth={1.5} />
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-52 bg-[var(--navbar-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl py-1.5 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200 cursor-pointer">
+                <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
                   {menuView === "main" ? (
                     <>
-                      <button onClick={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setShowDropdown(false); }} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-[#f5f5f5] dark:hover:bg-[#222] flex items-center group cursor-pointer">
+                      <button onClick={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setShowDropdown(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3"><Maximize2 size={15} /> Full screen</div>
                         <ShortcutHint>F</ShortcutHint>
                       </button>
-                      <button onClick={() => setMenuView("fonts")} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-[#f5f5f5] dark:hover:bg-[#222] flex items-center group cursor-pointer">
-                        <div className="flex items-center gap-3"><Type size={15} /> Font style</div>
+                      <button onClick={() => setMenuView("themes")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3"><Palette size={15} /> Themes</div>
+                        <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                       </button>
-                      <div className="h-[1px] bg-[var(--border-color)] my-1" />
-                      <button onClick={() => { const val = !showCounter; setShowCounter(val); localStorage.setItem("show-counter", String(val)); }} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-[#f5f5f5] dark:hover:bg-[#222] flex items-center group cursor-pointer">
+                      <button onClick={() => setMenuView("fonts")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3"><Type size={15} /> Font style</div>
+                        <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
+                      </button>
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      <button onClick={() => { const val = !showCounter; setShowCounter(val); localStorage.setItem("show-counter", String(val)); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3">{showCounter ? <EyeOff size={15} /> : <Eye size={15} />} {showCounter ? "Hide counter" : "Show counter"}</div>
                         <ShortcutHint>C</ShortcutHint>
                       </button>
                     </>
+                  ) : menuView === "themes" ? (
+                    <>
+                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
+                        <ChevronLeft size={14} /> Themes
+                      </button>
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      {THEMES.map((t) => (
+                        <button key={t.id} onClick={(e) => changeTheme(t.id, e)} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between group cursor-pointer transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3.5 h-3.5 rounded-full border border-[var(--border-color)] shadow-sm" style={{ background: t.color }} />
+                            {t.name}
+                          </div>
+                          {theme === t.id && <Check size={14} className="text-[var(--accent-color)]" />}
+                        </button>
+                      ))}
+                    </>
                   ) : (
                     <>
-                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2 text-[13px] opacity-40 hover:bg-[#f5f5f5] dark:hover:bg-[#222] flex items-center gap-3 transition-all">
-                        <ChevronLeft size={14} /> Back
+                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
+                        <ChevronLeft size={14} /> Font style
                       </button>
-                      <div className="h-[1px] bg-[var(--border-color)] my-1" />
-                      {["draft", "classic", "modern"].map((font) => (
-                        <button key={font} onClick={() => changeFont(font)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-[#f5f5f5] dark:hover:bg-[#222] flex items-center justify-between group capitalize">
-                          {font} {currentFont === font && <Check size={14} className="text-black dark:text-white" />}
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      {FONTS.map((font) => (
+                        <button key={font.id} onClick={() => changeFont(font.id)} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between group cursor-pointer transition-colors">
+                          {font.name} {currentFont === font.id && <Check size={14} className="text-[var(--accent-color)]" />}
                         </button>
                       ))}
                     </>

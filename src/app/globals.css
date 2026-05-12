@@ -50,8 +50,9 @@
   --foreground: #111111;
   --editor-bg: #FFFFFF;
   --editor-text: #111111;
-  --navbar-bg: #FFFFFF;
+  --navbar-bg: rgba(255, 255, 255, 0.8);
   --border-color: #EEEEEE;
+  --accent-color: #000000;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -68,74 +69,98 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: #121212;
+  --background: #222222;
   --foreground: #E0E0E0;
-  --editor-bg: #121212;
+  --editor-bg: #222222;
   --editor-text: #E0E0E0;
-  --navbar-bg: #121212;
-  --border-color: #222222;
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --navbar-bg: rgba(34, 34, 34, 0.8);
+  --border-color: rgba(255, 255, 255, 0.12);
+  --accent-color: #FFFFFF;
+}
+
+[data-theme='sepia'] {
+  --background: #f4ecd8;
+  --foreground: #433422;
+  --editor-bg: #f4ecd8;
+  --editor-text: #433422;
+  --navbar-bg: rgba(244, 236, 216, 0.8);
+  --border-color: rgba(67, 52, 34, 0.12);
+  --accent-color: #433422;
+}
+
+[data-theme='midnight'] {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --editor-bg: #0f172a;
+  --editor-text: #f1f5f9;
+  --navbar-bg: rgba(15, 23, 42, 0.8);
+  --border-color: rgba(241, 245, 249, 0.12);
+  --accent-color: #38bdf8;
+}
+
+[data-theme='forest'] {
+  --background: #111b1a;
+  --foreground: #ecfdf5;
+  --editor-bg: #111b1a;
+  --editor-text: #ecfdf5;
+  --navbar-bg: rgba(17, 27, 26, 0.8);
+  --border-color: rgba(236, 253, 245, 0.12);
+  --accent-color: #10b981;
+}
+
+[data-theme='ocean'] {
+  --background: #061e26;
+  --foreground: #e0f2f1;
+  --editor-bg: #061e26;
+  --editor-text: #e0f2f1;
+  --navbar-bg: rgba(6, 30, 38, 0.8);
+  --border-color: rgba(224, 242, 241, 0.12);
+  --accent-color: #26a69a;
+}
+
+[data-theme='rose'] {
+  --background: #1c1114;
+  --foreground: #fce7f3;
+  --editor-bg: #1c1114;
+  --editor-text: #fce7f3;
+  --navbar-bg: rgba(28, 17, 20, 0.8);
+  --border-color: rgba(252, 231, 243, 0.12);
+  --accent-color: #fb7185;
+}
+
+[data-theme='coffee'] {
+  --background: #1a1614;
+  --foreground: #ede0d4;
+  --editor-bg: #1a1614;
+  --editor-text: #ede0d4;
+  --navbar-bg: rgba(26, 22, 20, 0.8);
+  --border-color: rgba(237, 224, 212, 0.12);
+  --accent-color: #b5838d;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
-    @apply bg-background text-foreground overflow-x-hidden transition-[background-color,color] duration-500 ease-in-out scroll-smooth;
+    @apply bg-background text-foreground overflow-x-hidden transition-colors duration-500 ease-in-out scroll-smooth;
   }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   /* Hide scrollbar for IE, Edge and Firefox */
   .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
 }
 
@@ -154,4 +179,3 @@
 ::view-transition-new(root) {
   z-index: 9999;
 }
-
