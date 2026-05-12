@@ -1,131 +1,146 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+
+// Simple IndexedDB Utility
+const DB_NAME = "EditorDB";
+const STORE_NAME = "DraftStore";
+
+const saveToDB = (content: string) => {
+  const request = indexedDB.open(DB_NAME, 1);
+  request.onupgradeneeded = () => {
+    request.result.createObjectStore(STORE_NAME);
+  };
+  request.onsuccess = () => {
+    const db = request.result;
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).put(content, "current_draft");
+  };
+};
+
+const getFromDB = (callback: (content: string) => void) => {
+  const request = indexedDB.open(DB_NAME, 1);
+  request.onupgradeneeded = () => {
+    request.result.createObjectStore(STORE_NAME);
+  };
+  request.onsuccess = () => {
+    const db = request.result;
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const getRequest = tx.objectStore(STORE_NAME).get("current_draft");
+    getRequest.onsuccess = () => {
+      callback(getRequest.result || "");
+    };
+  };
+};
 
 export default function Banner() {
-  const images = [
-    "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1920&q=80",
-    "https://images.unsplash.com/photo-1509395176047-4a66953fd231?auto=format&fit=crop&w=1920&q=80",
-    "https://images.unsplash.com/photo-1516259762381-22954d7d3ad2?auto=format&fit=crop&w=1920&q=80",
-  ];
+  const [text, setText] = useState("");
+  const [fontStyle, setFontStyle] = useState("draft");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [current, setCurrent] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const nextSlide = () => setCurrent((prev) => (prev + 1) % images.length);
-  const prevSlide = () =>
-    setCurrent((prev) => (prev - 1 + images.length) % images.length);
-
-  const startAutoSlide = () => {
-    stopAutoSlide(); 
-    intervalRef.current = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % images.length);
-    }, 5000);
-  };
-
-  const stopAutoSlide = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  // Auto-resize textarea
+  const adjustHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
     }
   };
 
-  // Start auto-slide on mount
+  // Handle text changes and auto-save to IndexedDB
   useEffect(() => {
-    startAutoSlide();
-    return stopAutoSlide;  
+    adjustHeight();
+    
+    if (text) {
+      saveToDB(text);
+    }
+
+    // Word count calculation
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    
+    const timeoutId = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [text]);
+
+  // Initialization and listeners
+  useEffect(() => {
+    // Restore saved text from IndexedDB
+    getFromDB((savedText) => {
+      setText(savedText);
+    });
+
+    // Restore font style
+    const savedStyle = localStorage.getItem("font-style") || "draft";
+    
+    const timeoutId = setTimeout(() => {
+      if (savedStyle !== fontStyle) {
+        setFontStyle(savedStyle);
+      }
+    }, 0);
+
+    const handleFontStyle = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      setFontStyle(customEvent.detail || "draft");
+    };
+
+    window.addEventListener("font-style-update", handleFontStyle);
+    
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      adjustHeight();
+    }, 150);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("font-style-update", handleFontStyle);
+    };
   }, []);
 
-  // Restart auto-slide when manually changing slides
-  const handlePrevClick = () => {
-    prevSlide();
-    startAutoSlide();
+  const handleContainerClick = () => {
+    textareaRef.current?.focus();
   };
-  const handleNextClick = () => {
-    nextSlide();
-    startAutoSlide();
+
+  const getFontFamily = () => {
+    switch (fontStyle) {
+      case "classic": return "var(--font-lora), serif";
+      case "modern": return "var(--font-cousine), monospace";
+      default: return "var(--font-ibm-plex-sans), sans-serif";
+    }
+  };
+
+  const getFontSize = () => {
+    switch (fontStyle) {
+      case "classic": return "22px";
+      case "modern": return "18px";
+      default: return "20px";
+    }
   };
 
   return (
-    <section
-      className="relative lg:grid lg:h-screen lg:place-content-center"
-      onMouseEnter={stopAutoSlide}  
-      onMouseLeave={startAutoSlide}  
+    <main 
+      className="relative min-h-screen bg-[var(--editor-bg)] flex justify-center cursor-text pt-20 pb-40 selection:bg-[#d8d0c0] dark:selection:bg-[#333] transition-all duration-300"
+      onClick={handleContainerClick}
     >
-      {/* Background Images */}
-      {images.map((img, index) => (
-        <div
-          key={index}
-          className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ${
-            index === current ? "opacity-100" : "opacity-0"
-          }`}
-          style={{ backgroundImage: `url('${img}')` }}
-        ></div>
-      ))}
-
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40 dark:bg-black/60"></div>
-
-      {/* Content */}
-      <div className="relative z-10 mx-auto w-screen max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-bold text-white sm:text-5xl">
-            Strength Meets Precision in Every Steel Solution for Your Projects
-          </h1>
-          <p className="mt-4 text-base text-gray-200 sm:text-lg/relaxed">
-            Explore our premium iron and steel products with custom cutting,
-            bending, and rebar services built for maximum performance, delivered
-            with industrial precision, and tailored to your exact specifications.
-          </p>
-          <div className="mt-6 flex justify-center gap-4">
-            <a
-              className="inline-block rounded border border-indigo-600 bg-indigo-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
-              href="#"
-            >
-              Get Started
-            </a>
-            <a
-              className="inline-block rounded border border-gray-200 bg-white/10 px-5 py-3 font-medium text-gray-200 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
-              href="#"
-            >
-              Learn More
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Dots */}
-      <div className="absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-2 z-20">
-        {images.map((_, idx) => (
-          <button
-            key={idx}
-            className={`h-3 w-3 rounded-full transition-colors ${
-              idx === current ? "bg-white" : "bg-gray-400/50"
-            }`}
-            onClick={() => {
-              setCurrent(idx);
-              startAutoSlide();
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Left Arrow */}
-      <button
-        onClick={handlePrevClick}
-        className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-3 text-white hover:bg-black/50 transition cursor-pointer"
-      >
-        <ChevronLeft className="w-6 h-6" />
-      </button>
-
-      {/* Right Arrow */}
-      <button
-        onClick={handleNextClick}
-        className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-3 text-white hover:bg-black/50 transition cursor-pointer"
-      >
-        <ChevronRight className="w-6 h-6" />
-      </button>
-    </section>
+      <section className="w-full max-w-[850px] px-6 relative z-10">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Start writing..."
+          spellCheck={false}
+          className="w-full bg-transparent border-none outline-none resize-none 
+                     leading-[1.7] text-[var(--editor-text)] 
+                     placeholder:text-[#aaa] dark:placeholder:text-[#444] placeholder:font-normal
+                     no-scrollbar overflow-hidden transition-all duration-300"
+          style={{ 
+            fontFamily: getFontFamily(),
+            fontSize: getFontSize()
+          }}
+        />
+      </section>
+    </main>
   );
 }
