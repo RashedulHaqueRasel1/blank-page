@@ -1,84 +1,92 @@
-## 🚀 Template Overview Website
+# 📝 Blank Page — Distraction-Free Writing Interface
 
-A modern, scalable website built using **Next.js 14**, **TypeScript**, **Tailwind CSS**, **Shadcn UI**, **Lucide Icons**, **Zod**, **Axios**, **TanStack Query**, and **Sonner Toast** — with a clean architecture and modular folder structure.
+**Blank Page** is a premium, minimalist, multi-document writing interface designed for authors who seek a focused, distraction-free environment. Built with a local-first architecture, it ensures your data stays securely on your browser at all times.
 
----
-
-## 🚀 Tech Stack
-
-- **Framework:** [Next.js 16.0.7](https://nextjs.org/)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS + Shadcn/UI
-- **Icons:** Lucide Icons
-- **Form Validation:** Zod
-- **Data Fetching:** Axios + TanStack Query
-- **Notifications:** Sonner Toast
-- **Linting & Commit Hooks:** ESLint, Husky, Commitlint, Lint-staged
+![Premium UI](https://img.shields.io/badge/UI-Premium-blueviolet?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=for-the-badge&logo=tailwind-css)
 
 ---
 
+## ✨ Key Features
+
+### 🖋️ Distraction-Free Editor
+- **Minimalist Design:** A clean, uncluttered writing space with no unnecessary menus or buttons.
+- **Dynamic Auto-height:** The editor automatically adjusts its height based on your content for a seamless flow.
+- **Typography Styles:** Choose from three professional font styles: Draft Sans, Classic Serif, and Modern Mono.
+
+### 📂 Multi-Document Management
+- **IndexedDB Powered:** All your drafts are stored in your browser's robust IndexedDB, ensuring no data loss even after a refresh.
+- **Persistent Sidebar:** Easily pin, rename, and delete your drafts with a persistent navigation menu.
+- **Real-time Sync:** Uses the `BroadcastChannel` API to synchronize data instantly across different tabs or components.
+
+### 🎨 Premium Theme System
+- **8 High-End Themes:** Light, Dark, Sepia, Midnight, Forest, Ocean, Rose, and Coffee.
+- **Circular Transition:** A stunning circular expand animation effect when switching between themes.
+- **OKLCH Colors:** Each theme is meticulously crafted using the modern OKLCH color space for superior visual fidelity.
+
+### 📊 Writer's Utilities
+- **Word Counter:** Monitor your progress with a real-time word count.
+- **Full Screen Mode:** Stay deeply focused with a dedicated full-screen writing mode.
+- **Auto-save:** Your work is automatically saved with every single word you type.
+
 ---
 
-## ⚙️ Setup & Installation
+## 🛠️ Tech Stack
 
-# 1️⃣ Clone the repository
+- **Framework:** [Next.js 15+](https://nextjs.org/)
+- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/) (OKLCH based)
+- **Database:** IndexedDB (Client-side)
+- **Icons:** [Lucide React](https://lucide.dev/)
+- **Animations:** View Transitions API & Tailwind Animate
 
-git clone https://github.com/RashedulHaqueRasel1/Template-Overview-Website.git
+---
 
-# 2️⃣ Navigate to the project
+## 🚀 Getting Started
 
-cd Template-Overview-Website
+Follow these steps to run the project on your local machine:
 
-# 3️⃣ Install dependencies
+1. Clone the repository:
+```bash
+git clone https://github.com/RashedulHaqueRasel1/blank-page.git
+```
 
+2. Install dependencies:
+```bash
 npm install
+```
 
-# 4️⃣ Run development server
-
+3. Run the development server:
+```bash
 npm run dev
+```
 
-Then open http://localhost:3000 in your browser.
+4. Open in your browser: `http://localhost:3000`
 
-🧩 Features
-✨ Modern UI built with Tailwind + Shadcn
+---
 
-🔐 Authentication with NextAuth.js
+## 📁 Project Structure
 
-⚡ API integration with Axios
+```text
+src/
+├── app/               # Next.js App Router (Globals CSS & Layouts)
+├── components/        # UI Components (Navbar, Banner, Sidebar)
+├── hooks/             # Custom React Hooks
+└── lib/               # Database Helpers & Utilities
+```
 
-🔍 Data fetching & caching using TanStack Query
+---
 
-🧠 Strong validation using Zod
+## 🔒 Privacy & Security
 
-💬 Beautiful toasts with Sonner
+**Blank Page** prioritizes your privacy above all else. Your writings are never sent to any server; everything is stored locally on your device (IndexedDB) and remains completely under your control.
 
-🧰 Modular, scalable folder structure
+---
 
-🔒 Husky pre-commit hook + Commitlint setup
+## 📄 License
 
-📦 Scripts
-Command Description
-npm run dev Start development server
-npm run build Create production build
-npm run start Run production build
-npm run lint Run ESLint
-npm run format Prettify code (if configured)
+This project is licensed under the MIT License.
 
-🧪 Husky Setup (Pre-commit)
-This project uses Husky and Lint-staged to enforce clean commits.
+---
 
-# Add a new hook
-
-npx husky add .husky/pre-commit "npm run lint"
-git add .husky/pre-commit
-
---
-
-🧑‍💻 Author
-
-Rashedul Haque Rasel
-
-Built with ❤️ using Next.js, TypeScript, and Tailwind CSS.
-
-📧 [rashedulhaquerasel1@gmail.com](rashedulhaquerasel1@gmail.com) 
-🌐 [Protfolio](https://rashedul-haque-rasel.vercel.app)
+Built with ❤️ by **Rashedul Haque Rasel**

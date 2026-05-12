@@ -393,7 +393,7 @@ export default function Navbar() {
                 <div className="absolute right-2 flex items-center gap-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === doc.id ? null : doc.id); }}
-                    className={`p-2 transition-all rounded-lg cursor-pointer ${activeMenuId === doc.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    className={`p-2 transition-all rounded-lg cursor-pointer opacity-40 hover:opacity-100 ${activeMenuId === doc.id ? 'opacity-100' : ''}`}
                     style={{ color: "var(--editor-text)", background: activeMenuId === doc.id ? "color-mix(in srgb, var(--editor-text) 6%, transparent)" : "transparent" }}
                   >
                     <MoreVertical size={14} />
@@ -420,7 +420,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      <nav className="w-full h-14 bg-transparent flex items-center justify-between px-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
+      <nav className="w-full h-14 bg-[var(--navbar-bg)] backdrop-blur-md md:bg-transparent md:backdrop-blur-none flex items-center justify-between px-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
         <div className="flex items-center gap-5 md:pointer-events-auto">
           <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200">
             <AlignLeft size={22} strokeWidth={1.5} />
