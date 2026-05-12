@@ -2,9 +2,15 @@
 
 **Blank Page** is a premium, minimalist, multi-document writing interface designed for authors who seek a focused, distraction-free environment. Built with a local-first architecture, it ensures your data stays securely on your browser at all times.
 
+[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?style=for-the-badge&logo=vercel)](https://blank-page-v1.vercel.app/)
 ![Premium UI](https://img.shields.io/badge/UI-Premium-blueviolet?style=for-the-badge)
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=for-the-badge&logo=tailwind-css)
+
+---
+
+## 🔗 Live Link
+Experience the app here: **[https://blank-page-v1.vercel.app/](https://blank-page-v1.vercel.app/)**
 
 ---
 
