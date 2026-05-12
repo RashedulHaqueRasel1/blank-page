@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 
 const DB_NAME = "EditorDB";
 const STORE_NAME = "Documents";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Define Document Interface
 interface EditorDocument {
@@ -63,9 +63,11 @@ const getDoc = async (id: string): Promise<EditorDocument | null> => {
 };
 
 export default function Banner() {
+  // Use Lazy Initialization to avoid setState inside useEffect
   const [text, setText] = useState("");
-  const [fontStyle, setFontStyle] = useState("draft");
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [fontStyle, setFontStyle] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "draft" : "draft"));
+  const [activeId, setActiveId] = useState<string | null>(() => (typeof window !== "undefined" ? localStorage.getItem("active_doc_id") : null));
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isInitialLoad = useRef(true);
 
@@ -84,10 +86,27 @@ export default function Banner() {
     return words.length > 50 ? words.substring(0, 50) + "..." : words;
   };
 
-  useEffect(() => {
-    adjustHeight();
-  }, [fontStyle]);
+  const loadDocument = async (id: string) => {
+    if (!id) return;
+    const doc = await getDoc(id);
+    if (doc) {
+      isInitialLoad.current = true;
+      setText(doc.content || "");
+      setActiveId(id);
+      localStorage.setItem("active_doc_id", id);
+      
+      const words = doc.content.trim() ? doc.content.trim().split(/\s+/).length : 0;
+      window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
 
+      setTimeout(() => {
+        isInitialLoad.current = false;
+        adjustHeight();
+        textareaRef.current?.focus();
+      }, 50);
+    }
+  };
+
+  // Auto-save logic
   useEffect(() => {
     if (isInitialLoad.current || !activeId) return;
     
@@ -104,61 +123,44 @@ export default function Banner() {
     return () => clearTimeout(timeoutId);
   }, [text, activeId]);
 
-  const loadDocument = async (id: string) => {
-    const doc = await getDoc(id);
-    if (doc) {
-      isInitialLoad.current = true;
-      setText(doc.content || "");
-      setActiveId(id);
-      localStorage.setItem("active_doc_id", id);
-      setTimeout(() => {
-        isInitialLoad.current = false;
-        adjustHeight();
-        textareaRef.current?.focus();
-      }, 50);
-    }
-  };
-
+  // Main Communication and Init
   useEffect(() => {
-    const init = async () => {
-      const savedStyle = localStorage.getItem("font-style") || "draft";
-      setFontStyle(savedStyle);
-      
-      const checkActive = async () => {
-        const savedId = localStorage.getItem("active_doc_id");
-        if (savedId) await loadDocument(savedId);
-        else setTimeout(checkActive, 500);
-      };
-      checkActive();
+    const channel = new BroadcastChannel('editor-sync');
+    channel.onmessage = (event) => {
+      if (event.data.type === 'SWITCH_DOC' && event.data.id) {
+        loadDocument(event.data.id);
+      }
     };
 
-    init();
-
-    const handleDocUpdate = (e: Event) => {
-      const id = (e as CustomEvent).detail;
-      if (id) loadDocument(id);
-    };
-    
     const handleFontStyle = (e: Event) => {
       const style = (e as CustomEvent).detail || "draft";
       setFontStyle(style);
     };
-
-    window.addEventListener("active-doc-update", handleDocUpdate);
     window.addEventListener("font-style-update", handleFontStyle);
 
+    // Initial Load - Now we use a small timeout to avoid synchronous setState during mount
+    const savedId = localStorage.getItem("active_doc_id");
+    if (savedId) {
+      setTimeout(() => loadDocument(savedId), 0);
+    }
+
     return () => {
-      window.removeEventListener("active-doc-update", handleDocUpdate);
+      channel.close();
       window.removeEventListener("font-style-update", handleFontStyle);
     };
   }, []);
 
+  // Sync font style height
+  useEffect(() => {
+    adjustHeight();
+  }, [fontStyle]);
+
   return (
     <main 
-      className="relative w-full h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto no-scrollbar" 
+      className="relative w-full min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto" 
       onClick={() => textareaRef.current?.focus()}
     >
-      <section className="w-full max-w-[850px] px-6 relative z-10 flex flex-col pt-20 pb-40">
+      <section className="w-full max-w-[850px] px-6 relative z-10 flex flex-col pt-24 pb-40">
         <textarea
           ref={textareaRef}
           value={text}
