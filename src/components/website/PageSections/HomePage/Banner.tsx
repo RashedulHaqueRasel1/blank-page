@@ -2,43 +2,73 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-// Simple IndexedDB Utility
 const DB_NAME = "EditorDB";
-const STORE_NAME = "DraftStore";
+const STORE_NAME = "Documents";
+const DB_VERSION = 3;
 
-const saveToDB = (content: string) => {
-  const request = indexedDB.open(DB_NAME, 1);
-  request.onupgradeneeded = () => {
-    request.result.createObjectStore(STORE_NAME);
-  };
-  request.onsuccess = () => {
-    const db = request.result;
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(content, "current_draft");
-  };
+// Define Document Interface
+interface EditorDocument {
+  id: string;
+  title: string;
+  content: string;
+  lastModified: number;
+}
+
+// Pure Helpers - Outside component
+const getDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
+      const db = (e.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 };
 
-const getFromDB = (callback: (content: string) => void) => {
-  const request = indexedDB.open(DB_NAME, 1);
-  request.onupgradeneeded = () => {
-    request.result.createObjectStore(STORE_NAME);
-  };
-  request.onsuccess = () => {
-    const db = request.result;
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const getRequest = tx.objectStore(STORE_NAME).get("current_draft");
-    getRequest.onsuccess = () => {
-      callback(getRequest.result || "");
+const saveDoc = async (id: string, content: string, title: string) => {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    
+    getReq.onsuccess = () => {
+      const data = (getReq.result as EditorDocument) || { id, title: "Untitled", content: "", lastModified: Date.now() };
+      data.content = content;
+      data.title = title;
+      data.lastModified = Date.now();
+      store.put(data);
     };
-  };
+  } catch (err) {
+    console.error("Save Doc Error:", err);
+  }
+};
+
+const getDoc = async (id: string): Promise<EditorDocument | null> => {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const request = tx.objectStore(STORE_NAME).get(id);
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result as EditorDocument);
+      request.onerror = () => resolve(null);
+    });
+  } catch (err) {
+    return null;
+  }
 };
 
 export default function Banner() {
   const [text, setText] = useState("");
   const [fontStyle, setFontStyle] = useState("draft");
+  const [activeId, setActiveId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isInitialLoad = useRef(true);
 
-  // Auto-resize textarea
   const adjustHeight = () => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -47,83 +77,80 @@ export default function Banner() {
     }
   };
 
-  // Handle text changes and auto-save to IndexedDB
-  useEffect(() => {
-    adjustHeight();
-    
-    if (text) {
-      saveToDB(text);
-    }
+  const generateTitle = (str: string) => {
+    const firstLine = str.trim().split("\n")[0];
+    if (!firstLine) return "Untitled";
+    const words = firstLine.split(/\s+/).slice(0, 10).join(" ");
+    return words.length > 50 ? words.substring(0, 50) + "..." : words;
+  };
 
-    // Word count calculation
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  useEffect(() => {
+    if (isInitialLoad.current || !activeId) return;
+    
+    adjustHeight();
+    const currentTitle = generateTitle(text);
+    saveDoc(activeId, text, currentTitle);
     
     const timeoutId = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("title-updated", { detail: { id: activeId, title: currentTitle } }));
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
       window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
-    }, 0);
+    }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [text]);
+  }, [text, activeId]);
 
-  // Initialization and listeners
+  const loadDocument = async (id: string) => {
+    const doc = await getDoc(id);
+    if (doc) {
+      isInitialLoad.current = true;
+      setText(doc.content || "");
+      setActiveId(id);
+      localStorage.setItem("active_doc_id", id);
+      setTimeout(() => {
+        isInitialLoad.current = false;
+        adjustHeight();
+        textareaRef.current?.focus();
+      }, 50);
+    }
+  };
+
   useEffect(() => {
-    // Restore saved text from IndexedDB
-    getFromDB((savedText) => {
-      setText(savedText);
-    });
-
-    // Restore font style
-    const savedStyle = localStorage.getItem("font-style") || "draft";
-    
-    const timeoutId = setTimeout(() => {
-      if (savedStyle !== fontStyle) {
-        setFontStyle(savedStyle);
-      }
-    }, 0);
-
-    const handleFontStyle = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      setFontStyle(customEvent.detail || "draft");
+    const init = async () => {
+      const savedStyle = localStorage.getItem("font-style") || "draft";
+      setFontStyle(savedStyle);
+      
+      const checkActive = async () => {
+        const savedId = localStorage.getItem("active_doc_id");
+        if (savedId) await loadDocument(savedId);
+        else setTimeout(checkActive, 500);
+      };
+      checkActive();
     };
 
-    window.addEventListener("font-style-update", handleFontStyle);
+    init();
+
+    const handleDocUpdate = (e: Event) => {
+      const id = (e as CustomEvent).detail;
+      if (id) loadDocument(id);
+    };
     
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      adjustHeight();
-    }, 150);
+    const handleFontStyle = (e: Event) => {
+      const style = (e as CustomEvent).detail || "draft";
+      setFontStyle(style);
+    };
+
+    window.addEventListener("active-doc-update", handleDocUpdate);
+    window.addEventListener("font-style-update", handleFontStyle);
 
     return () => {
-      clearTimeout(timeoutId);
+      window.removeEventListener("active-doc-update", handleDocUpdate);
       window.removeEventListener("font-style-update", handleFontStyle);
     };
   }, []);
 
-  const handleContainerClick = () => {
-    textareaRef.current?.focus();
-  };
-
-  const getFontFamily = () => {
-    switch (fontStyle) {
-      case "classic": return "var(--font-lora), serif";
-      case "modern": return "var(--font-cousine), monospace";
-      default: return "var(--font-ibm-plex-sans), sans-serif";
-    }
-  };
-
-  const getFontSize = () => {
-    switch (fontStyle) {
-      case "classic": return "22px";
-      case "modern": return "18px";
-      default: return "20px";
-    }
-  };
-
   return (
-    <main 
-      className="relative min-h-screen bg-[var(--editor-bg)] flex justify-center cursor-text pt-20 pb-40 selection:bg-[#d8d0c0] dark:selection:bg-[#333] transition-all duration-300"
-      onClick={handleContainerClick}
-    >
+    <main className="relative min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text pt-20 pb-40 transition-all duration-300" onClick={() => textareaRef.current?.focus()}>
       <section className="w-full max-w-[850px] px-6 relative z-10">
         <textarea
           ref={textareaRef}
@@ -131,13 +158,10 @@ export default function Banner() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Start writing..."
           spellCheck={false}
-          className="w-full bg-transparent border-none outline-none resize-none 
-                     leading-[1.7] text-[var(--editor-text)] 
-                     placeholder:text-[#aaa] dark:placeholder:text-[#444] placeholder:font-normal
-                     no-scrollbar overflow-hidden transition-all duration-300"
+          className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:text-[#aaa] dark:placeholder:text-[#444] no-scrollbar overflow-hidden transition-all duration-300"
           style={{ 
-            fontFamily: getFontFamily(),
-            fontSize: getFontSize()
+            fontFamily: fontStyle === "classic" ? "var(--font-lora), serif" : fontStyle === "modern" ? "var(--font-cousine), monospace" : "var(--font-ibm-plex-sans), sans-serif",
+            fontSize: fontStyle === "classic" ? "22px" : fontStyle === "modern" ? "18px" : "20px"
           }}
         />
       </section>
