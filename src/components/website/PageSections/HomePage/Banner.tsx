@@ -85,6 +85,10 @@ export default function Banner() {
   };
 
   useEffect(() => {
+    adjustHeight();
+  }, [fontStyle]);
+
+  useEffect(() => {
     if (isInitialLoad.current || !activeId) return;
     
     adjustHeight();
@@ -150,15 +154,18 @@ export default function Banner() {
   }, []);
 
   return (
-    <main className="relative min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text pt-20 pb-40 transition-all duration-300" onClick={() => textareaRef.current?.focus()}>
-      <section className="w-full max-w-[850px] px-6 relative z-10">
+    <main 
+      className="relative w-full h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto no-scrollbar" 
+      onClick={() => textareaRef.current?.focus()}
+    >
+      <section className="w-full max-w-[850px] px-6 relative z-10 flex flex-col pt-20 pb-40">
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Start writing..."
           spellCheck={false}
-          className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:text-[#aaa] dark:placeholder:text-[#444] no-scrollbar overflow-hidden transition-all duration-300"
+          className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:text-[#aaa] dark:placeholder:text-[#444] no-scrollbar overflow-hidden transition-all duration-300 min-h-[50vh]"
           style={{ 
             fontFamily: fontStyle === "classic" ? "var(--font-lora), serif" : fontStyle === "modern" ? "var(--font-cousine), monospace" : "var(--font-ibm-plex-sans), sans-serif",
             fontSize: fontStyle === "classic" ? "22px" : fontStyle === "modern" ? "18px" : "20px"
