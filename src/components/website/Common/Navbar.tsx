@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { 
-  AlignLeft, MoreHorizontal, Moon, Sun, Type, Maximize2, 
+import {
+  AlignLeft, MoreHorizontal, Moon, Sun, Type, Maximize2,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
   Pin, PinOff, Edit3, MoreVertical
 } from "lucide-react";
@@ -122,11 +122,11 @@ export default function Navbar() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
-  const [menuView, setMenuView] = useState("main"); 
+  const [menuView, setMenuView] = useState("main");
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string }>({ isOpen: false, id: "", currentTitle: "" });
   const [newTitleValue, setNewTitleValue] = useState("");
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const syncChannel = useRef<BroadcastChannel | null>(null);
@@ -136,14 +136,14 @@ export default function Navbar() {
     return () => syncChannel.current?.close();
   }, []);
 
-  const refreshDocs = async () => {
+  const refreshDocs = async (keepSidebarOpen = false) => {
     const docs = await fetchAllDocs();
     setDocuments(docs);
     const savedActiveId = localStorage.getItem("active_doc_id");
     if (docs.length === 0) {
       handleCreateNewDoc("First Draft");
     } else if (!savedActiveId || !docs.find(d => d.id === savedActiveId)) {
-      handleSwitchDoc(docs[0].id);
+      handleSwitchDoc(docs[0].id, keepSidebarOpen);
     } else {
       setActiveDocId(savedActiveId);
     }
@@ -161,7 +161,8 @@ export default function Navbar() {
       await removeDocFromDB(id);
       if (activeDocId === id) localStorage.removeItem("active_doc_id");
       setActiveMenuId(null);
-      refreshDocs();
+      // Pass true to keep the sidebar open after deletion
+      refreshDocs(true);
     } catch (err) { console.error(err); }
   };
 
@@ -169,7 +170,7 @@ export default function Navbar() {
     try {
       await updateDocInDB(id, { pinned: !currentPinned });
       setActiveMenuId(null);
-      refreshDocs();
+      refreshDocs(true); // Keep sidebar open
     } catch (err) { console.error(err); }
   };
 
@@ -184,22 +185,22 @@ export default function Navbar() {
       try {
         await updateDocInDB(renameModal.id, { title: newTitleValue.trim() });
         setRenameModal({ isOpen: false, id: "", currentTitle: "" });
-        refreshDocs();
+        refreshDocs(true); // Keep sidebar open
       } catch (err) { console.error(err); }
     } else {
       setRenameModal({ isOpen: false, id: "", currentTitle: "" });
     }
   };
 
-  const handleSwitchDoc = (id: string) => {
+  const handleSwitchDoc = (id: string, keepSidebarOpen = false) => {
     setActiveDocId(id);
     localStorage.setItem("active_doc_id", id);
-    
-    // Use BroadcastChannel for robust sync
     syncChannel.current?.postMessage({ type: 'SWITCH_DOC', id });
-    
-    setShowSidebar(false); 
-    refreshDocs();
+
+    if (!keepSidebarOpen) {
+      setShowSidebar(false);
+    }
+    refreshDocs(keepSidebarOpen);
   };
 
   const toggleTheme = (e: React.MouseEvent) => {
@@ -241,10 +242,10 @@ export default function Navbar() {
   useEffect(() => {
     if (theme === "dark") document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");
-    const dataTimer = setTimeout(() => refreshDocs(), 0);
+    const dataTimer = setTimeout(() => refreshDocs(showSidebar), 0);
 
     const handleWordCount = (e: Event) => setWordCount((e as CustomEvent).detail || 0);
-    const handleTitleUpdate = () => refreshDocs();
+    const handleTitleUpdate = () => refreshDocs(showSidebar);
 
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -270,7 +271,7 @@ export default function Navbar() {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
       const key = e.key.toLowerCase();
       if (key === "n") { e.preventDefault(); handleCreateNewDoc(); }
-      if (key === "m") { e.preventDefault(); setShowSidebar(true); refreshDocs(); }
+      if (key === "m") { e.preventDefault(); setShowSidebar(true); refreshDocs(true); }
       if (key === "escape") { setShowDropdown(false); setShowSidebar(false); setMenuView("main"); setActiveMenuId(null); }
     };
 
@@ -278,7 +279,7 @@ export default function Navbar() {
     window.addEventListener("title-updated", handleTitleUpdate);
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
-    
+
     return () => {
       clearTimeout(dataTimer);
       window.removeEventListener("word-count-update", handleWordCount);
@@ -291,16 +292,16 @@ export default function Navbar() {
   return (
     <>
       {showSidebar && <div className="fixed inset-0 bg-black/5 dark:bg-black/20 backdrop-blur-[2px] z-[90] transition-all duration-300" />}
-      
+
       {/* Rename Modal */}
       {renameModal.isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md" onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} />
           <div className="relative w-full max-w-[320px] bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
             <h3 className="text-[14px] font-bold opacity-30 mb-4 uppercase tracking-widest">Rename Draft</h3>
-            <input 
+            <input
               autoFocus
-              type="text" 
+              type="text"
               value={newTitleValue}
               onChange={(e) => setNewTitleValue(e.target.value)}
               className="w-full bg-black/5 dark:bg-white/5 border-none outline-none px-4 py-3 rounded-xl text-[14px] text-black dark:text-white mb-6 focus:ring-1 focus:ring-black/10 dark:focus:ring-white/10"
@@ -346,10 +347,10 @@ export default function Navbar() {
                   </div>
                   {activeDocId === doc.id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-black dark:bg-white rounded-r-full" />}
                 </button>
-                
+
                 <div className="absolute right-2 flex items-center gap-1">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === doc.id ? null : doc.id); }} 
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === doc.id ? null : doc.id); }}
                     className={`p-2 text-[#666] hover:text-black dark:hover:text-white transition-all rounded-lg hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer ${activeMenuId === doc.id ? 'opacity-100 bg-black/5 dark:bg-white/5' : 'opacity-0 group-hover:opacity-100'}`}
                   >
                     <MoreVertical size={14} />
@@ -357,14 +358,14 @@ export default function Navbar() {
 
                   {activeMenuId === doc.id && (
                     <div className="absolute right-full top-8 mr-2 w-44 bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl py-1.5 z-[110] animate-in fade-in zoom-in slide-in-from-right-2 duration-200">
-                      <button onClick={() => handleOpenRenameModal(doc.id, doc.title)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors">
-                        <Edit3 size={14} className="opacity-60" /> Rename
-                      </button>
-                      <button onClick={() => handleTogglePin(doc.id, !!doc.pinned)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors">
+                      <button onClick={() => handleTogglePin(doc.id, !!doc.pinned)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors cursor-pointer">
                         {doc.pinned ? <><PinOff size={14} className="opacity-60" /> Unpin</> : <><Pin size={14} className="opacity-60" /> Pin to top</>}
                       </button>
+                      <button onClick={() => handleOpenRenameModal(doc.id, doc.title)} className="w-full text-left px-4 py-2 text-[13px] text-[var(--editor-text)] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-3 transition-colors cursor-pointer">
+                        <Edit3 size={14} className="opacity-60" /> Rename
+                      </button>
                       <div className="h-[1px] bg-[var(--border-color)] my-1" />
-                      <button onClick={() => handleDeleteDoc(doc.id)} className="w-full text-left px-4 py-2 text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 transition-colors">
+                      <button onClick={() => handleDeleteDoc(doc.id)} className="w-full text-left px-4 py-2 text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 transition-colors cursor-pointer">
                         <Trash2 size={14} className="opacity-60" /> Delete
                       </button>
                     </div>
@@ -378,7 +379,7 @@ export default function Navbar() {
 
       <nav className="w-full h-14 bg-transparent flex items-center justify-between px-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
         <div className="flex items-center gap-5 md:pointer-events-auto">
-          <button onClick={() => { setShowSidebar(true); refreshDocs(); }} className="text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200">
+          <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200">
             <AlignLeft size={22} strokeWidth={1.5} />
           </button>
         </div>

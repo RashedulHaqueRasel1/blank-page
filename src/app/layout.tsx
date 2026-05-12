@@ -40,9 +40,9 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Hierro A Medida",
+  title: "Blank Page",
   description:
-    "Design amazing digital experiences that create more happy in the world.",
+    "Blank page for writing",
 };
 
 export default function RootLayout({

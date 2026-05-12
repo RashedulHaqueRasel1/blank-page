@@ -35,7 +35,7 @@ const saveDoc = async (id: string, content: string, title: string) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const getReq = store.get(id);
-    
+
     getReq.onsuccess = () => {
       const data = (getReq.result as EditorDocument) || { id, title: "Untitled", content: "", lastModified: Date.now() };
       data.content = content;
@@ -67,7 +67,7 @@ export default function Banner() {
   const [text, setText] = useState("");
   const [fontStyle, setFontStyle] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "draft" : "draft"));
   const [activeId, setActiveId] = useState<string | null>(() => (typeof window !== "undefined" ? localStorage.getItem("active_doc_id") : null));
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isInitialLoad = useRef(true);
 
@@ -94,7 +94,7 @@ export default function Banner() {
       setText(doc.content || "");
       setActiveId(id);
       localStorage.setItem("active_doc_id", id);
-      
+
       const words = doc.content.trim() ? doc.content.trim().split(/\s+/).length : 0;
       window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
 
@@ -109,11 +109,11 @@ export default function Banner() {
   // Auto-save logic
   useEffect(() => {
     if (isInitialLoad.current || !activeId) return;
-    
+
     adjustHeight();
     const currentTitle = generateTitle(text);
     saveDoc(activeId, text, currentTitle);
-    
+
     const timeoutId = setTimeout(() => {
       window.dispatchEvent(new CustomEvent("title-updated", { detail: { id: activeId, title: currentTitle } }));
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -156,11 +156,11 @@ export default function Banner() {
   }, [fontStyle]);
 
   return (
-    <main 
-      className="relative w-full min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto" 
+    <main
+      className="relative w-full min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto"
       onClick={() => textareaRef.current?.focus()}
     >
-      <section className="w-full max-w-[850px] px-6 relative z-10 flex flex-col pt-24 pb-40">
+      <section className="w-full max-w-[900px] px-6 relative z-10 flex flex-col pt-22 pb-40">
         <textarea
           ref={textareaRef}
           value={text}
@@ -168,7 +168,7 @@ export default function Banner() {
           placeholder="Start writing..."
           spellCheck={false}
           className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:text-[#aaa] dark:placeholder:text-[#444] no-scrollbar overflow-hidden transition-all duration-300 min-h-[50vh]"
-          style={{ 
+          style={{
             fontFamily: fontStyle === "classic" ? "var(--font-lora), serif" : fontStyle === "modern" ? "var(--font-cousine), monospace" : "var(--font-ibm-plex-sans), sans-serif",
             fontSize: fontStyle === "classic" ? "22px" : fontStyle === "modern" ? "18px" : "20px"
           }}

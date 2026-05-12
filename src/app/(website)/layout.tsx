@@ -3,9 +3,9 @@ import "../globals.css";
 import Navbar from "@/components/website/Common/Navbar";
 
 export const metadata: Metadata = {
-  title: "Services Services",
+  title: "Blank Page",
   description:
-    "Elite craftsmanship in custom stone, tile, and masonry for homes & businesses across the Valley.",
+    "Blank page for writing",
 };
 
 export default function RootLayout({
@@ -17,7 +17,6 @@ export default function RootLayout({
     <>
       <Navbar />
       {children}
-
     </>
   );
 }
