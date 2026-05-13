@@ -333,8 +333,16 @@ export default function Navbar() {
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
     
+    // Prevent body scroll when sidebar is open (Mobile fix)
+    if (showSidebar) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+
     return () => {
       clearTimeout(dataTimer);
+      document.body.style.overflow = "unset";
       window.removeEventListener("word-count-update", handleWordCount);
       window.removeEventListener("title-updated", handleTitleUpdate);
       document.removeEventListener("mousedown", handleClickOutside);
@@ -393,7 +401,10 @@ export default function Navbar() {
             <Plus size={18} className="opacity-60 group-hover:opacity-100 transition-opacity" /> New Document
           </button>
 
-          <div className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1 pr-2">
+          <div 
+            className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1 pr-2"
+            style={{ overscrollBehavior: 'contain' }}
+          >
             <div className="flex items-center justify-between px-4 mb-4">
               <span className="text-[14px] font-bold opacity-30" style={{ color: "var(--editor-text)" }}>Active Tabs</span>
             </div>
@@ -479,7 +490,7 @@ export default function Navbar() {
                 <MoreHorizontal size={19} strokeWidth={1.5} />
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] backdrop-blur-xl border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
                   {menuView === "main" ? (
                     <>
                       <button onClick={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setShowDropdown(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
