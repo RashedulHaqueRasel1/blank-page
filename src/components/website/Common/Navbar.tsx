@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { 
+import {
   AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
   Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX
@@ -21,14 +21,14 @@ interface EditorDocument {
 }
 
 const THEMES = [
-  { id: "light",    name: "Light Mode",    color: "#ffffff" },
-  { id: "dark",     name: "Dark Mode",     color: "#121212" },
-  { id: "sepia",    name: "Sepia Paper",   color: "#f4ecd8" },
-  { id: "midnight", name: "Midnight Sky",  color: "#0f172a" },
-  { id: "forest",   name: "Forest Deep",   color: "#111b1a" },
-  { id: "ocean",    name: "Ocean Depths",  color: "#061e26" },
-  { id: "rose",     name: "Rose Noir",     color: "#1c1114" },
-  { id: "coffee",   name: "Coffee House",  color: "#1a1614" },
+  { id: "light", name: "Light Mode", color: "#ffffff" },
+  { id: "dark", name: "Dark Mode", color: "#121212" },
+  { id: "sepia", name: "Sepia Paper", color: "#f4ecd8" },
+  { id: "midnight", name: "Midnight Sky", color: "#0f172a" },
+  { id: "forest", name: "Forest Deep", color: "#111b1a" },
+  { id: "ocean", name: "Ocean Depths", color: "#061e26" },
+  { id: "rose", name: "Rose Noir", color: "#1c1114" },
+  { id: "coffee", name: "Coffee House", color: "#1a1614" },
 ];
 
 const FONTS = [
@@ -140,12 +140,12 @@ export default function Navbar() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
-  const [menuView, setMenuView] = useState("main"); 
+  const [menuView, setMenuView] = useState("main");
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string }>({ isOpen: false, id: "", currentTitle: "" });
   const [newTitleValue, setNewTitleValue] = useState("");
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "info" }>({ show: false, message: "", type: "success" });
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const syncChannel = useRef<BroadcastChannel | null>(null);
@@ -222,7 +222,7 @@ export default function Navbar() {
     setActiveDocId(id);
     localStorage.setItem("active_doc_id", id);
     syncChannel.current?.postMessage({ type: 'SWITCH_DOC', id });
-    if (!keepSidebarOpen) setShowSidebar(false); 
+    if (!keepSidebarOpen) setShowSidebar(false);
     refreshDocs(keepSidebarOpen);
   };
 
@@ -230,7 +230,7 @@ export default function Navbar() {
     const performChange = () => {
       setTheme(newTheme);
       localStorage.setItem("app-theme", newTheme);
-      
+
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark');
         document.documentElement.removeAttribute('data-theme');
@@ -291,7 +291,7 @@ export default function Navbar() {
     } else if (theme !== 'light') {
       document.documentElement.setAttribute('data-theme', theme);
     }
-    
+
     const dataTimer = setTimeout(() => refreshDocs(showSidebar), 0);
     const handleWordCount = (e: Event) => setWordCount((e as CustomEvent).detail || 0);
     const handleTitleUpdate = () => refreshDocs(showSidebar);
@@ -318,8 +318,8 @@ export default function Navbar() {
         return;
       }
       if (
-        (e.target as HTMLElement).isContentEditable || 
-        e.target instanceof HTMLTextAreaElement || 
+        (e.target as HTMLElement).isContentEditable ||
+        e.target instanceof HTMLTextAreaElement ||
         e.target instanceof HTMLInputElement
       ) return;
       const key = e.key.toLowerCase();
@@ -332,7 +332,7 @@ export default function Navbar() {
     window.addEventListener("title-updated", handleTitleUpdate);
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
-    
+
     // Prevent body scroll when sidebar is open (Mobile fix)
     if (showSidebar) {
       document.body.style.overflow = "hidden";
@@ -364,11 +364,11 @@ export default function Navbar() {
       )}
 
       {showSidebar && <div className="fixed inset-0 bg-black/10 dark:bg-black/40 backdrop-blur-xl z-[90] transition-all duration-300" />}
-      
+
       {/* Rename Modal */}
       {renameModal.isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-2xl" onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} />
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xl" onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} />
           <div className="relative w-full max-w-[320px] rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200" style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}>
             <h3 className="text-[14px] font-bold opacity-30 mb-4 uppercase tracking-widest" style={{ color: "var(--editor-text)" }}>Rename Draft</h3>
             <input
@@ -401,7 +401,7 @@ export default function Navbar() {
             <Plus size={18} className="opacity-60 group-hover:opacity-100 transition-opacity" /> New Document
           </button>
 
-          <div 
+          <div
             className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1 pr-2"
             style={{ overscrollBehavior: 'contain' }}
           >
@@ -474,7 +474,7 @@ export default function Navbar() {
         <div className="flex items-center gap-6 text-[#666] md:pointer-events-auto">
           {showCounter && (
             <div className="flex items-center gap-4">
-              <button 
+              <button
                 onClick={toggleSound}
                 className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer opacity-70 hover:opacity-100"
                 title={soundEnabled ? "Disable sound" : "Enable sound"}
@@ -490,7 +490,7 @@ export default function Navbar() {
                 <MoreHorizontal size={19} strokeWidth={1.5} />
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] backdrop-blur-xl border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
                   {menuView === "main" ? (
                     <>
                       <button onClick={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setShowDropdown(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
