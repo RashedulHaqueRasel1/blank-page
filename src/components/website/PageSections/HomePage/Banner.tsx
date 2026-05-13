@@ -1,24 +1,28 @@
 "use client";
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
-import { Copy, Check, Languages, Loader2, RefreshCw, X } from "lucide-react";
+import FloatingToolbar from "./Editor/FloatingToolbar";
+import TranslationModal from "./Editor/TranslationModal";
 
 const DB_NAME = "EditorDB";
 const STORE_NAME = "Documents";
 const DB_VERSION = 4;
 
-// Define Document Interface
+const LANGUAGES = ["English", "Bengali", "Arabic", "Hindi", "Spanish", "French", "German"];
+const MODELS = [
+  { id: "m1", label: "Fast Mode" },
+  { id: "m2", label: "Pro Mode" }
+];
+const API_SECRET = "blank_page_secret_token_2026_secure";
+
 interface EditorDocument {
   id: string;
-  title: string;
   content: string;
-  lastModified: number;
-  pinned?: boolean;
-  wasRenamed?: boolean;
+  title: string;
+  updatedAt: number;
 }
 
-// Pure Helpers - Outside component
-const getDB = (): Promise<IDBDatabase> => {
+const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
@@ -32,36 +36,15 @@ const getDB = (): Promise<IDBDatabase> => {
   });
 };
 
-const saveDoc = async (id: string, content: string, title: string) => {
+const getDocument = async (id: string) => {
   try {
-    const db = await getDB();
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const getReq = store.get(id);
-
-    getReq.onsuccess = () => {
-      const data = (getReq.result as EditorDocument) || { id, title: "Untitled", content: "", lastModified: Date.now(), wasRenamed: false };
-      data.content = content;
-      // Only update title if it hasn't been manually renamed
-      if (!data.wasRenamed) {
-        data.title = title;
-      }
-      data.lastModified = Date.now();
-      store.put(data);
-    };
-  } catch (err) {
-    console.error("Save Doc Error:", err);
-  }
-};
-
-const getDoc = async (id: string): Promise<EditorDocument | null> => {
-  try {
-    const db = await getDB();
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const request = tx.objectStore(STORE_NAME).get(id);
-    return new Promise((resolve) => {
-      request.onsuccess = () => resolve(request.result as EditorDocument);
-      request.onerror = () => resolve(null);
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
   } catch (err) {
     return null;
@@ -84,15 +67,10 @@ export default function Banner() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationResult, setTranslationResult] = useState("");
   const [showTranslateOptions, setShowTranslateOptions] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState("English");
-
-  const LANGUAGES = ["English", "Bengali", "Arabic", "Hindi", "Spanish", "French", "German"];
-  const MODELS = [
-    { id: "m1", label: "Fast Mode" },
-    { id: "m2", label: "Pro Mode" }
-  ];
+  const [customInstruction, setCustomInstruction] = useState("");
+  const [selectedText, setSelectedText] = useState("");
   const [selectedModel, setSelectedModel] = useState("m1");
-  const API_SECRET = "blank_page_secret_token_2026_secure";
+  const [resultCopied, setResultCopied] = useState(false);
 
   const stripHtml = (html: string) => {
     if (typeof window === "undefined") return html;
@@ -104,57 +82,71 @@ export default function Banner() {
     const text = stripHtml(html);
     const firstLine = text.trim().split("\n")[0];
     if (!firstLine) return "Untitled";
-    const words = firstLine.split(/\s+/).slice(0, 10).join(" ");
-    return words.length > 50 ? words.substring(0, 50) + "..." : words;
+    return firstLine.slice(0, 30) + (firstLine.length > 30 ? "..." : "");
   };
 
-  const loadDocument = async (id: string) => {
-    if (!id) return;
-    const doc = await getDoc(id);
-    if (doc) {
-      isInitialLoad.current = true;
-      const loadedContent = doc.content || "";
-      setContent(loadedContent);
-      if (editorRef.current) {
-        editorRef.current.innerHTML = loadedContent;
-      }
-      setActiveId(id);
-      localStorage.setItem("active_doc_id", id);
-
-      const words = stripHtml(loadedContent).trim() ? stripHtml(loadedContent).trim().split(/\s+/).length : 0;
-      window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
-
-      setTimeout(() => {
-        isInitialLoad.current = false;
-        editorRef.current?.focus();
-      }, 50);
+  const saveDocument = async (html: string) => {
+    if (!activeId) return;
+    try {
+      const db = await openDB();
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      await store.put({
+        id: activeId,
+        content: html,
+        title: generateTitle(html),
+        lastModified: Date.now()
+      });
+      window.dispatchEvent(new CustomEvent('editor-content-updated'));
+    } catch (err) {
+      console.error("Save Error:", err);
     }
   };
 
-  // Auto-save logic
+  const loadDocument = async (id: string) => {
+    const doc = await getDocument(id) as EditorDocument | null;
+    if (doc) {
+      setContent(doc.content);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = doc.content;
+      }
+      setActiveId(id);
+      localStorage.setItem("active_doc_id", id);
+    }
+  };
+
+  useLayoutEffect(() => {
+    if (activeId) {
+      loadDocument(activeId);
+    }
+  }, [activeId]);
+
   useEffect(() => {
-    if (isInitialLoad.current || !activeId) return;
-
-    const currentTitle = generateTitle(content);
-    saveDoc(activeId, content, currentTitle);
-
-    const timeoutId = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("title-updated", { detail: { id: activeId, title: currentTitle } }));
-      const words = stripHtml(content).trim() ? stripHtml(content).trim().split(/\s+/).length : 0;
-      window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      return;
+    }
+    const timeout = setTimeout(() => saveDocument(content), 1000);
+    return () => clearTimeout(timeout);
   }, [content, activeId]);
 
   // Selection handling for toolbar
   useEffect(() => {
     const handleSelection = () => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.closest('.floating-toolbar')) {
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !editorRef.current?.contains(selection.anchorNode)) {
         setToolbarPos((prev) => ({ ...prev, show: false }));
+        setShowTranslateOptions(false);
+        setTranslationResult("");
         return;
       }
+
+      const text = selection.toString().trim();
+      if (text) setSelectedText(text);
 
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
@@ -165,15 +157,24 @@ export default function Banner() {
         left: isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2,
         show: true
       });
-
-      // Reset translation state on new selection
-      setShowTranslateOptions(false);
-      setTranslationResult("");
     };
 
     document.addEventListener("selectionchange", handleSelection);
     return () => document.removeEventListener("selectionchange", handleSelection);
   }, []);
+
+  // Visual Selection Highlight
+  useEffect(() => {
+    if (showTranslateOptions && selectedText) {
+      try {
+        document.execCommand("hiliteColor", false, "rgba(255, 230, 0, 0.3)");
+      } catch (e) { }
+    } else if (!showTranslateOptions && !isTranslating) {
+      try {
+        document.execCommand("hiliteColor", false, "transparent");
+      } catch (e) { }
+    }
+  }, [showTranslateOptions, selectedText, isTranslating]);
 
   // Main Communication and Init
   useEffect(() => {
@@ -197,16 +198,8 @@ export default function Banner() {
 
     const savedId = localStorage.getItem("active_doc_id");
     if (savedId) {
-      setTimeout(() => loadDocument(savedId), 0);
+      loadDocument(savedId);
     }
-
-    // Pre-load kbs.im samples
-    const samples = ["kbs1", "kbs2", "kbs3", "kbs4"];
-    samples.forEach(s => {
-      const audio = new Audio(`/sounds/${s}.mp3`);
-      audio.preload = "auto";
-      audioPool.current[s] = audio;
-    });
 
     return () => {
       channel.close();
@@ -215,67 +208,62 @@ export default function Banner() {
     };
   }, []);
 
-  const playASMRSound = (type: "regular" | "space" | "enter" | "backspace") => {
+  const playTypewriterSound = () => {
     if (!soundEnabled) return;
-
-    let sample = "kbs1";
-    if (type === "space") sample = "kbs2";
-    else if (type === "enter") sample = "kbs3";
-    else if (type === "backspace") sample = "kbs4";
-
-    const baseAudio = audioPool.current[sample];
-    if (!baseAudio) return;
-
-    try {
-      const AudioContextClass = window.AudioContext || (window as unknown as Window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const audioCtx = new AudioContextClass();
-      const source = audioCtx.createMediaElementSource(baseAudio.cloneNode() as HTMLAudioElement);
-      const gainNode = audioCtx.createGain();
-
-      // Boost volume (2.0 = 200%, 3.0 = 300%)
-      gainNode.gain.setValueAtTime(type === "space" ? 2.5 : 1.8, audioCtx.currentTime);
-
-      source.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      (source.mediaElement as HTMLAudioElement).play();
-
-      // Clean up context after sound finishes
-      setTimeout(() => audioCtx.close(), 1000);
-    } catch (e) {
-      // Fallback to simple playback if Web Audio fails
-      const sound = baseAudio.cloneNode() as HTMLAudioElement;
-      sound.volume = 1.0;
-      sound.play().catch(() => { });
+    const sounds = ["/sounds/key1.mp3", "/sounds/key2.mp3", "/sounds/key3.mp3"];
+    const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
+    if (!audioPool.current[randomSound]) {
+      audioPool.current[randomSound] = new Audio(randomSound);
     }
+    const audio = audioPool.current[randomSound];
+    audio.currentTime = 0;
+    audio.volume = 0.2;
+    audio.play().catch(() => { });
   };
 
-  const applyColor = (color: string) => {
-    document.execCommand("foreColor", false, color);
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const newContent = e.currentTarget.innerHTML;
+    setContent(newContent);
+    playTypewriterSound();
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, text);
     if (editorRef.current) {
       setContent(editorRef.current.innerHTML);
     }
   };
 
-  const handleTranslate = async (targetLang: string) => {
+  const handleCopy = () => {
     const selection = window.getSelection();
-    if (!selection || !selection.toString().trim()) return;
+    if (selection) {
+      navigator.clipboard.writeText(selection.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
-    const text = selection.toString().trim();
+  const handleTranslate = async (targetLang: string) => {
+    if (!selectedText) return;
+
+    const text = selectedText;
     setIsTranslating(true);
     setShowTranslateOptions(false);
 
     try {
       const response = await fetch("/api/translate", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "x-m-id": selectedModel,
           "x-api-secret": API_SECRET
         },
         body: JSON.stringify({
           text,
-          targetLang
+          targetLang,
+          customInstruction
         })
       });
 
@@ -283,7 +271,7 @@ export default function Banner() {
       if (!response.ok || data.error) {
         throw new Error(data.error || "Server Error");
       }
-      
+
       setTranslationResult(data.result || "Translation failed");
     } catch (error) {
       console.error("Translation Error:", error);
@@ -294,35 +282,27 @@ export default function Banner() {
     }
   };
 
+  const handleResultCopy = () => {
+    if (!translationResult) return;
+    navigator.clipboard.writeText(translationResult);
+    setResultCopied(true);
+    setTimeout(() => setResultCopied(false), 2000);
+  };
+
   const applyTranslation = () => {
     if (!translationResult) return;
     document.execCommand("insertHTML", false, translationResult);
-    setTranslationResult("");
-    setToolbarPos(prev => ({ ...prev, show: false }));
-    if (editorRef.current) setContent(editorRef.current.innerHTML);
-  };
-
-  const handleCopy = async () => {
-    const selection = window.getSelection();
-    if (selection) {
-      const text = selection.toString();
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    if (editorRef.current) {
+      setContent(editorRef.current.innerHTML);
     }
+    setTranslationResult("");
   };
 
-  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    setContent(e.currentTarget.innerHTML);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    let type: "regular" | "space" | "enter" | "backspace" = "regular";
-    if (e.key === " ") type = "space";
-    else if (e.key === "Enter") type = "enter";
-    else if (e.key === "Backspace") type = "backspace";
-
-    playASMRSound(type);
+  const applyColor = (color: string) => {
+    document.execCommand("foreColor", false, color);
+    if (editorRef.current) {
+      setContent(editorRef.current.innerHTML);
+    }
   };
 
   return (
@@ -333,130 +313,62 @@ export default function Banner() {
       }}
     >
       {/* Floating Toolbar */}
-      {toolbarPos.show && (
-        <div
-          className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 animate-in fade-in zoom-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200"
-          style={{
-            top: toolbarPos.top,
-            left: toolbarPos.left,
-            maxWidth: "90vw"
-          }}
-        >
-          <div className="flex items-center gap-2 border-r border-gray-100 dark:border-white/10 pr-3 mr-1">
-            {[
-              { color: "inherit", label: "Default" },
-              { color: "#ef4444", label: "Red" },
-              { color: "#3b82f6", label: "Blue" },
-              { color: "#10b981", label: "Green" },
-              { color: "#f59e0b", label: "Amber" },
-              { color: "#8b5cf6", label: "Purple" },
-            ].map((item) => (
-              <button
-                key={item.color}
-                onClick={() => applyColor(item.color)}
-                className="w-5 h-5 rounded-full border border-gray-200 dark:border-white/20 hover:scale-125 transition-transform cursor-pointer"
-                style={{ backgroundColor: item.color === "inherit" ? "transparent" : item.color }}
-                title={item.label}
-              />
-            ))}
-          </div>
+      <FloatingToolbar
+        show={toolbarPos.show}
+        top={toolbarPos.top}
+        left={toolbarPos.left}
+        copied={copied}
+        isTranslating={isTranslating}
+        showTranslateOptions={showTranslateOptions}
+        customInstruction={customInstruction}
+        selectedModel={selectedModel}
+        models={MODELS}
+        languages={LANGUAGES}
+        onCopy={handleCopy}
+        onToggleTranslate={() => setShowTranslateOptions(!showTranslateOptions)}
+        onSetCustomInstruction={setCustomInstruction}
+        onSetModel={setSelectedModel}
+        onTranslate={handleTranslate}
+        onApplyColor={applyColor}
+      />
 
-          <button
-            onClick={handleCopy}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-gray-500 dark:text-gray-400"
-            title="Copy selection"
-          >
-            {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
-          </button>
-
-          <div className="relative">
-            <button
-              onClick={() => setShowTranslateOptions(!showTranslateOptions)}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-gray-500 dark:text-gray-400 flex items-center gap-1"
-              title="Translate"
-            >
-              {isTranslating ? <Loader2 size={16} className="animate-spin text-accent-color" /> : <Languages size={16} />}
-            </button>
-
-            {showTranslateOptions && (
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-2xl border border-gray-100 dark:border-white/10 py-2 z-[110] animate-in fade-in zoom-in duration-200">
-                <div className="px-3 mb-2 pb-2 border-b border-gray-100 dark:border-white/10">
-                  <span className="text-[10px] font-bold opacity-30 uppercase tracking-tighter">AI Model</span>
-                  <div className="flex gap-1 mt-1">
-                    {MODELS.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => setSelectedModel(m.id)}
-                        className={`flex-1 py-1 text-[9px] rounded-md transition-all ${selectedModel === m.id ? 'bg-[var(--accent-color)] text-black cursor-pointer font-bold' : 'hover:bg-gray-100 dark:hover:bg-white/5 opacity-60 cursor-pointer '}`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <span className="px-3 text-[10px] font-bold opacity-30 uppercase tracking-tighter">Target Language</span>
-                <div className="mt-1">
-                  {LANGUAGES.map(lang => (
-                    <button
-                      key={lang}
-                      onClick={() => handleTranslate(lang)}
-                      className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
-                    >
-                      {lang}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Translation Result Modal */}
-      {translationResult && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[150] w-[90%] max-w-[400px] bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-2xl rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-5 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex justify-between items-start mb-3">
-            <h4 className="text-[10px] font-bold tracking-widest uppercase opacity-40">Translation Result</h4>
-            <button 
-              onClick={() => setTranslationResult("")}
-              className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors cursor-pointer opacity-40 hover:opacity-100"
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <p className="text-[14px] leading-relaxed mb-6 text-[var(--editor-text)]">{translationResult}</p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setTranslationResult("")}
-              className="flex-1 py-2.5 text-[12px] font-medium rounded-xl border border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={applyTranslation}
-              className="flex-1 py-2.5 text-[12px] font-bold rounded-xl bg-[var(--accent-color)] hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-black cursor-pointer"
-            >
-              <RefreshCw size={14} /> Replace Text
-            </button>
-          </div>
-        </div>
-      )}
-
-      <section className="w-full max-w-[900px] px-6 relative z-10 flex flex-col pt-20 pb-40">
+      {/* Editor Surface */}
+      <div className="w-full max-w-6xl px-6 md:px-20 py-20">
         <div
           ref={editorRef}
           contentEditable
           onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:empty:before:content-[attr(data-placeholder)] placeholder:empty:before:text-[#aaa] dark:placeholder:empty:before:text-[#444] no-scrollbar overflow-hidden transition-colors duration-200 min-h-[50vh]"
+          onPaste={handlePaste}
+          className={`w-full min-h-[60vh] outline-none text-[18px] md:text-[22px] leading-[1.8] font-${fontStyle} text-[var(--editor-text)] whitespace-pre-wrap transition-all duration-500 selection:bg-[var(--accent-color)] selection:text-black`}
+          style={{ caretColor: 'var(--accent-color)' }}
+          spellCheck="false"
           data-placeholder="Start writing..."
-          spellCheck={false}
-          style={{
-            fontFamily: fontStyle === "classic" ? "var(--font-lora), serif" : fontStyle === "modern" ? "var(--font-cousine), monospace" : "var(--font-ibm-plex-sans), sans-serif",
-            fontSize: fontStyle === "classic" ? "20px" : fontStyle === "modern" ? "20px" : "22px",
-          }}
         />
-      </section>
+      </div>
+
+      {/* Translation Result Modal */}
+      <TranslationModal
+        translationResult={translationResult}
+        resultCopied={resultCopied}
+        onClose={() => setTranslationResult("")}
+        onCopy={handleResultCopy}
+        onApply={applyTranslation}
+      />
+
+      <style jsx global>{`
+        .font-draft { font-family: 'Inter', sans-serif; }
+        .font-classic { font-family: 'Merriweather', serif; }
+        .font-typewriter { font-family: 'Courier Prime', monospace; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        [contenteditable]:empty:before {
+          content: attr(data-placeholder);
+          color: var(--editor-text);
+          opacity: 0.3;
+          cursor: text;
+        }
+      `}</style>
     </main>
   );
 }

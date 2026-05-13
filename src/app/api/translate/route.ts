@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { text, targetLang } = await req.json();
+    const { text, targetLang, customInstruction } = await req.json();
     const mId = req.headers.get("x-m-id");
     const clientSecret = req.headers.get("x-api-secret");
 
@@ -48,6 +48,7 @@ export async function POST(req: Request) {
 TASK:
 - Detect language automatically (Banglish, Bangla, English etc.)
 - Convert into: ${targetLang}
+${customInstruction ? `- ADDITIONAL STYLE/INSTRUCTION: ${customInstruction}` : ""}
 - If Banglish, understand meaning first then translate
 - Return ONLY final translated text
 - No explanation, no quotes, no extra words
