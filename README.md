@@ -53,8 +53,8 @@ Blank Page is a distraction-free, minimalist writing interface designed for high
    Create a `.env.local` file in the root:
    ```env
    OPENROUTER_API_KEY=your_openrouter_key
-   MODEL_M1=********
-   MODEL_M2=*********
+   MODEL_M1=******
+   MODEL_M2=********
    INTERNAL_API_SECRET=your_secure_secret_token
    ```
 
@@ -68,6 +68,23 @@ Blank Page is a distraction-free, minimalist writing interface designed for high
 - `src/components/website/PageSections/HomePage/Editor/FloatingToolbar.tsx`: Formatting & AI UI.
 - `src/components/website/PageSections/HomePage/Editor/TranslationModal.tsx`: AI Result Handling.
 - `src/app/api/translate/route.ts`: Secure AI API Gateway.
+
+## 👨‍💻 About the Author
+
+Hi, I'm **Rashedul Haque Rasel** — a Frontend Developer & WordPress Expert passionate about building modern, user-friendly, and scalable web applications.
+
+### 🔗 Connect with Me
+
+- 📧 **Email**: [rashedulhaquerasel1@gmail.com](mailto:rashedulhaquerasel1@gmail.com)
+- 🌐 **Portfolio**: [rashedul-haque-rasel.vercel.app](https://rashedul-haque-rasel.vercel.app)
+- 💼 **LinkedIn**: [Rashedul Haque Rasel](https://www.linkedin.com/in/rashedul-haque-rasel)
+- 📘 **Facebook**: [Rashedul Haque Rasel](https://www.facebook.com/Rashedul.haque.Rase1)
+- 💬 **WhatsApp**: [+8801772582460](https://wa.me/8801772582460)
+
+---
+
+### 💡 Ideas & Contributions
+I love hearing new ideas! If you have any suggestions to make this editor even better, or if you'd like to contribute to the code, feel free to reach out to me. Let's build something amazing together!
 
 ## 📄 License
 This project is licensed under the MIT License.
