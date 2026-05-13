@@ -363,12 +363,12 @@ export default function Navbar() {
         </div>
       )}
 
-      {showSidebar && <div className="fixed inset-0 bg-black/5 dark:bg-black/20 backdrop-blur-[2px] z-[90] transition-all duration-300" />}
+      {showSidebar && <div className="fixed inset-0 bg-black/10 dark:bg-black/40 backdrop-blur-xl z-[90] transition-all duration-300" />}
       
       {/* Rename Modal */}
       {renameModal.isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md" onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} />
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-2xl" onClick={() => setRenameModal({ isOpen: false, id: "", currentTitle: "" })} />
           <div className="relative w-full max-w-[320px] rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200" style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}>
             <h3 className="text-[14px] font-bold opacity-30 mb-4 uppercase tracking-widest" style={{ color: "var(--editor-text)" }}>Rename Draft</h3>
             <input
