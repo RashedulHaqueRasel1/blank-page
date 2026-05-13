@@ -127,6 +127,12 @@ export default function Banner() {
       return;
     }
     const timeout = setTimeout(() => saveDocument(content), 1000);
+    
+    // Dispatch word count update
+    const text = stripHtml(content);
+    const count = text.trim() ? text.trim().split(/\s+/).length : 0;
+    window.dispatchEvent(new CustomEvent('word-count-update', { detail: count }));
+    
     return () => clearTimeout(timeout);
   }, [content, activeId]);
 
@@ -210,14 +216,14 @@ export default function Banner() {
 
   const playTypewriterSound = () => {
     if (!soundEnabled) return;
-    const sounds = ["/sounds/key1.mp3", "/sounds/key2.mp3", "/sounds/key3.mp3"];
+    const sounds = ["/sounds/kbs1.mp3", "/sounds/kbs2.mp3", "/sounds/kbs3.mp3", "/sounds/kbs4.mp3"];
     const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
     if (!audioPool.current[randomSound]) {
       audioPool.current[randomSound] = new Audio(randomSound);
     }
     const audio = audioPool.current[randomSound];
     audio.currentTime = 0;
-    audio.volume = 0.2;
+    audio.volume = 0.8;
     audio.play().catch(() => { });
   };
 
@@ -234,6 +240,7 @@ export default function Banner() {
     if (editorRef.current) {
       setContent(editorRef.current.innerHTML);
     }
+    playTypewriterSound();
   };
 
   const handleCopy = () => {
