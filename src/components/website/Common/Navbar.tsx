@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { 
   AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
-  Pin, PinOff, Edit3, MoreVertical, ChevronRight
+  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX
 } from "lucide-react";
 
 const DB_NAME = "EditorDB";
@@ -133,6 +133,7 @@ export default function Navbar() {
   const [theme, setTheme] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("app-theme") || "light" : "light"));
   const [showCounter, setShowCounter] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("show-counter") !== "false" : true));
   const [currentFont, setCurrentFont] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "draft" : "draft"));
+  const [soundEnabled, setSoundEnabled] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("typewriter-sound") === "true" : false));
 
   const [wordCount, setWordCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -143,6 +144,7 @@ export default function Navbar() {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string }>({ isOpen: false, id: "", currentTitle: "" });
   const [newTitleValue, setNewTitleValue] = useState("");
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "info" }>({ show: false, message: "", type: "success" });
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,11 @@ export default function Navbar() {
     syncChannel.current = new BroadcastChannel('editor-sync');
     return () => syncChannel.current?.close();
   }, []);
+
+  const showToast = (message: string, type: "success" | "info" = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+  };
 
   const refreshDocs = async (keepSidebarOpen = false) => {
     const docs = await fetchAllDocs();
@@ -179,6 +186,7 @@ export default function Navbar() {
       if (activeDocId === id) localStorage.removeItem("active_doc_id");
       setActiveMenuId(null);
       refreshDocs(true);
+      showToast("Document deleted", "info");
     } catch (err) { console.error(err); }
   };
 
@@ -187,6 +195,7 @@ export default function Navbar() {
       await updateDocInDB(id, { pinned: !currentPinned });
       setActiveMenuId(null);
       refreshDocs(true);
+      showToast(currentPinned ? "Document unpinned" : "Document pinned");
     } catch (err) { console.error(err); }
   };
 
@@ -202,6 +211,7 @@ export default function Navbar() {
         await updateDocInDB(renameModal.id, { title: newTitleValue.trim(), wasRenamed: true });
         setRenameModal({ isOpen: false, id: "", currentTitle: "" });
         refreshDocs(true);
+        showToast("Title updated");
       } catch (err) { console.error(err); }
     } else {
       setRenameModal({ isOpen: false, id: "", currentTitle: "" });
@@ -259,6 +269,13 @@ export default function Navbar() {
     setMenuView("main");
   };
 
+  const toggleSound = () => {
+    const newVal = !soundEnabled;
+    setSoundEnabled(newVal);
+    localStorage.setItem("typewriter-sound", String(newVal));
+    window.dispatchEvent(new CustomEvent("editor-sound-update", { detail: newVal }));
+  };
+
   const changeFont = (font: string) => {
     setCurrentFont(font);
     localStorage.setItem("font-style", font);
@@ -300,10 +317,14 @@ export default function Navbar() {
         if (e.key === "Escape") setRenameModal({ isOpen: false, id: "", currentTitle: "" });
         return;
       }
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+      if (
+        (e.target as HTMLElement).isContentEditable || 
+        e.target instanceof HTMLTextAreaElement || 
+        e.target instanceof HTMLInputElement
+      ) return;
       const key = e.key.toLowerCase();
-      if (key === "n") { e.preventDefault(); handleCreateNewDoc(); }
-      if (key === "m") { e.preventDefault(); setShowSidebar(true); refreshDocs(true); }
+      if (key === "n" && e.shiftKey) { e.preventDefault(); handleCreateNewDoc(); }
+      if (key === "m" && e.shiftKey) { e.preventDefault(); setShowSidebar(true); refreshDocs(true); }
       if (key === "escape") { setShowDropdown(false); setShowSidebar(false); setMenuView("main"); setActiveMenuId(null); }
     };
 
@@ -323,6 +344,17 @@ export default function Navbar() {
 
   return (
     <>
+      {/* Global Toast */}
+      {toast.show && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[300] animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-none">
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-xl border border-gray-100 dark:border-white/10 shadow-2xl">
+            <div className={`w-2 h-2 rounded-full ${toast.type === 'success' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'}`} />
+            <span className="text-[13px] font-medium text-[var(--editor-text)] whitespace-nowrap">{toast.message}</span>
+            <Check size={14} className={toast.type === 'success' ? 'text-green-500' : 'text-blue-500'} />
+          </div>
+        </div>
+      )}
+
       {showSidebar && <div className="fixed inset-0 bg-black/5 dark:bg-black/20 backdrop-blur-[2px] z-[90] transition-all duration-300" />}
       
       {/* Rename Modal */}
@@ -429,7 +461,18 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-6 text-[#666] md:pointer-events-auto">
-          {showCounter && <span className="text-[13px] font-medium tracking-tight opacity-70 select-none">{wordCount} words</span>}
+          {showCounter && (
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={toggleSound}
+                className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer opacity-70 hover:opacity-100"
+                title={soundEnabled ? "Disable sound" : "Enable sound"}
+              >
+                {soundEnabled ? <Volume2 size={18} strokeWidth={1.5} /> : <VolumeX size={18} strokeWidth={1.5} />}
+              </button>
+              <span className="text-[13px] font-medium tracking-tight opacity-70 select-none">{wordCount} words</span>
+            </div>
+          )}
           <div className="flex items-center gap-5 relative">
             <div className="relative" ref={dropdownRef}>
               <button onClick={() => setShowDropdown(!showDropdown)} className="hover:text-black dark:hover:text-white transition-colors duration-200">

@@ -74,8 +74,10 @@ export default function Banner() {
   const [activeId, setActiveId] = useState<string | null>(() => (typeof window !== "undefined" ? localStorage.getItem("active_doc_id") : null));
   const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; show: boolean }>({ top: 0, left: 0, show: false });
   const [copied, setCopied] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("typewriter-sound") === "true" : false));
 
   const editorRef = useRef<HTMLDivElement>(null);
+  const audioPool = useRef<Record<string, HTMLAudioElement>>({});
   const isInitialLoad = useRef(true);
 
   const stripHtml = (html: string) => {
@@ -169,16 +171,65 @@ export default function Banner() {
     };
     window.addEventListener("font-style-update", handleFontStyle);
 
+    const handleSoundUpdate = (e: Event) => {
+      setSoundEnabled((e as CustomEvent).detail);
+    };
+    window.addEventListener("editor-sound-update", handleSoundUpdate);
+
     const savedId = localStorage.getItem("active_doc_id");
     if (savedId) {
       setTimeout(() => loadDocument(savedId), 0);
     }
 
+    // Pre-load kbs.im samples
+    const samples = ["kbs1", "kbs2", "kbs3", "kbs4"];
+    samples.forEach(s => {
+      const audio = new Audio(`/sounds/${s}.mp3`);
+      audio.preload = "auto";
+      audioPool.current[s] = audio;
+    });
+
     return () => {
       channel.close();
       window.removeEventListener("font-style-update", handleFontStyle);
+      window.removeEventListener("editor-sound-update", handleSoundUpdate);
     };
   }, []);
+
+  const playASMRSound = (type: "regular" | "space" | "enter" | "backspace") => {
+    if (!soundEnabled) return;
+    
+    let sample = "kbs1";
+    if (type === "space") sample = "kbs2";
+    else if (type === "enter") sample = "kbs3";
+    else if (type === "backspace") sample = "kbs4";
+
+    const baseAudio = audioPool.current[sample];
+    if (!baseAudio) return;
+
+    try {
+      const AudioContextClass = window.AudioContext || (window as unknown as Window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioCtx = new AudioContextClass();
+      const source = audioCtx.createMediaElementSource(baseAudio.cloneNode() as HTMLAudioElement);
+      const gainNode = audioCtx.createGain();
+      
+      // Boost volume (2.0 = 200%, 3.0 = 300%)
+      gainNode.gain.setValueAtTime(type === "space" ? 2.5 : 1.8, audioCtx.currentTime);
+      
+      source.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      (source.mediaElement as HTMLAudioElement).play();
+      
+      // Clean up context after sound finishes
+      setTimeout(() => audioCtx.close(), 1000);
+    } catch (e) {
+      // Fallback to simple playback if Web Audio fails
+      const sound = baseAudio.cloneNode() as HTMLAudioElement;
+      sound.volume = 1.0;
+      sound.play().catch(() => {});
+    }
+  };
 
   const applyColor = (color: string) => {
     document.execCommand("foreColor", false, color);
@@ -195,6 +246,19 @@ export default function Banner() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    setContent(e.currentTarget.innerHTML);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    let type: "regular" | "space" | "enter" | "backspace" = "regular";
+    if (e.key === " ") type = "space";
+    else if (e.key === "Enter") type = "enter";
+    else if (e.key === "Backspace") type = "backspace";
+    
+    playASMRSound(type);
   };
 
   return (
@@ -243,7 +307,8 @@ export default function Banner() {
         <div
           ref={editorRef}
           contentEditable
-          onInput={(e) => setContent(e.currentTarget.innerHTML)}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
           className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:empty:before:content-[attr(data-placeholder)] placeholder:empty:before:text-[#aaa] dark:placeholder:empty:before:text-[#444] no-scrollbar overflow-hidden transition-colors duration-200 min-h-[50vh]"
           data-placeholder="Start writing..."
           spellCheck={false}
