@@ -1,110 +1,73 @@
-# 📝 Blank Page — Distraction-Free Writing Interface
+# Blank Page - Minimalist AI-Powered Writing Editor
 
-**Blank Page** is a premium, minimalist, multi-document writing interface designed for authors who seek a focused, distraction-free environment. Built with a local-first architecture, it ensures your data stays securely on your browser at all times.
+Blank Page is a distraction-free, minimalist writing interface designed for high-fidelity writing and seamless AI-powered translations. Built with Next.js, it combines elegant design with professional-grade security and advanced AI capabilities.
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?style=for-the-badge&logo=vercel)](https://blank-page-v1.vercel.app/)
-![Premium UI](https://img.shields.io/badge/UI-Premium-blueviolet?style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=for-the-badge&logo=tailwind-css)
+![Blank Page Editor](/public/banner-preview.png)
 
----
+## 🚀 Key Features
 
-## 🔗 Live Link
-Experience the app here: **[https://blank-page-v1.vercel.app/](https://blank-page-v1.vercel.app/)**
+### 🤖 AI-Powered Translation
+- **OpenRouter Integration**: Securely leverages world-class AI models (like GPT-4o-mini and Llama 3.1) via OpenRouter.
+- **Custom Prompts**: Beyond simple translation, users can provide 1-line instructions (e.g., "make it more professional", "translate with humor") to guide the AI's output.
+- **Model Selection**: Switch between **Fast Mode** (efficiency) and **Pro Mode** (advanced reasoning).
+- **In-Place Replacement**: Preview translations in a beautiful modal and replace original text with one click.
 
----
+### 🛡️ Security Hardening
+- **Server-Side Proxy**: All AI API calls are handled server-side to keep API keys private.
+- **Security Handshake**: Implemented a secret token verification (`x-api-secret`) between the client and server to prevent unauthorized API abuse.
+- **Model Obfuscation**: Internal AI model names are hidden from the frontend via mapping (e.g., `m1`, `m2`).
 
-## ✨ Key Features
+### ✍️ Premium Writing Experience
+- **Floating Context Toolbar**: Appears on text selection for quick formatting and AI actions.
+- **Visual Selection Retention**: Keeps your selected text highlighted even while you're typing AI instructions.
+- **Clean Paste Logic**: Automatically extracts plain text from the clipboard, preventing messy HTML formatting from external websites.
+- **Typewriter Sounds**: Immersive auditory feedback for every keystroke (optional).
+- **Auto-Save**: Powered by **IndexedDB (v4)** for robust, offline-first document persistence.
 
-### 🖋️ Distraction-Free Editor
-- **Minimalist Design:** A clean, uncluttered writing space with no unnecessary menus or buttons.
-- **Dynamic Auto-height:** The editor automatically adjusts its height based on your content for a seamless flow.
-- **Typography Styles:** Choose from three professional font styles: Draft Sans, Classic Serif, and Modern Mono.
-
-### 📂 Multi-Document Management
-- **IndexedDB Powered:** All your drafts are stored in your browser's robust IndexedDB, ensuring no data loss even after a refresh.
-- **Persistent Sidebar:** Easily pin, rename, and delete your drafts with a persistent navigation menu.
-- **Real-time Sync:** Uses the `BroadcastChannel` API to synchronize data instantly across different tabs or components.
-
-### 🎨 Premium Theme System
-- **8 High-End Themes:** Light, Dark, Sepia, Midnight, Forest, Ocean, Rose, and Coffee.
-- **Circular Transition:** A stunning circular expand animation effect when switching between themes.
-- **OKLCH Colors:** Each theme is meticulously crafted using the modern OKLCH color space for superior visual fidelity.
-
-### 📊 Writer's Utilities
-- **Word Counter:** Monitor your progress with a real-time word count.
-- **Full Screen Mode:** Stay deeply focused with a dedicated full-screen writing mode.
-- **Auto-save:** Your work is automatically saved with every single word you type.
-- **Toast Notifications:** Sleek, glassmorphic feedback for document actions like pinning, renaming, and deleting.
-
-### 🔊 Immersive ASMR Typing (New!)
-- **Mechanical Sound Engine:** High-fidelity typing sounds using real mechanical keyboard recordings (sourced from kbs.im).
-- **Acoustic Key Profiles:** Unique acoustic signatures for **Regular**, **Spacebar**, **Enter**, and **Backspace** keys.
-- **Zero-Latency Audio:** Optimized audio pool for responsive, non-robotic typing feedback.
-- **Volume Booster:** Enhanced gain control for a satisfyingly loud ASMR experience.
-
-### 🛠️ Floating Styling Toolbar
-- **Contextual Actions:** A sleek toolbar that appears only when you select text.
-- **Rich Text Support:** Easily apply colors and copy text with a single click.
-- **Mobile Optimized:** Smart positioning on small screens to avoid native browser menu interference.
-
----
+### 🎨 Design & Aesthetics
+- **Glassmorphic UI**: Modern, translucent interfaces with smooth animations.
+- **Themes**: Support for Light, Dark, Sepia, and various premium dark modes (Midnight, Forest, etc.).
+- **Responsive Design**: Optimized for both desktop and mobile writing.
 
 ## 🛠️ Tech Stack
+- **Framework**: Next.js 14+
+- **Styling**: Vanilla CSS / Tailwind CSS
+- **Icons**: Lucide React
+- **Database**: IndexedDB (Browser-native)
+- **AI Backend**: OpenRouter API (via secure Next.js Route Handlers)
 
-- **Framework:** [Next.js 15+](https://nextjs.org/)
-- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/) (OKLCH based)
-- **Database:** IndexedDB (Client-side)
-- **Icons:** [Lucide React](https://lucide.dev/)
-- **Animations:** View Transitions API & Tailwind Animate
+## 📦 Installation & Setup
 
----
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/RashedulHaqueRasel1/blank-page.git
+   cd blank-page
+   ```
 
-## 🚀 Getting Started
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-Follow these steps to run the project on your local machine:
+3. **Configure Environment Variables**:
+   Create a `.env.local` file in the root:
+   ```env
+   OPENROUTER_API_KEY=your_openrouter_key
+   MODEL_M1=openai/gpt-4o-mini
+   MODEL_M2=meta-llama/llama-3.1-8b-instruct:free
+   INTERNAL_API_SECRET=your_secure_secret_token
+   ```
 
-1. Clone the repository:
-```bash
-git clone https://github.com/RashedulHaqueRasel1/blank-page.git
-```
+4. **Run Development Server**:
+   ```bash
+   npm run dev
+   ```
 
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Run the development server:
-```bash
-npm run dev
-```
-
-4. Open in your browser: `http://localhost:3000`
-
----
-
-## 📁 Project Structure
-
-```text
-src/
-├── app/               # Next.js App Router (Globals CSS & Layouts)
-├── components/        # UI Components (Navbar, Banner, Sidebar)
-├── hooks/             # Custom React Hooks
-└── lib/               # Database Helpers & Utilities
-```
-
----
-
-## 🔒 Privacy & Security
-
-**Blank Page** prioritizes your privacy above all else. Your writings are never sent to any server; everything is stored locally on your device (IndexedDB) and remains completely under your control.
-
----
+## 📂 Project Structure
+- `src/components/website/PageSections/HomePage/Banner.tsx`: Core Editor Logic.
+- `src/components/website/PageSections/HomePage/Editor/FloatingToolbar.tsx`: Formatting & AI UI.
+- `src/components/website/PageSections/HomePage/Editor/TranslationModal.tsx`: AI Result Handling.
+- `src/app/api/translate/route.ts`: Secure AI API Gateway.
 
 ## 📄 License
-
 This project is licensed under the MIT License.
-
----
-
-Built with ❤️ by **Rashedul Haque Rasel**
