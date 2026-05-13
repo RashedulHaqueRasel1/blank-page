@@ -19,7 +19,8 @@ interface EditorDocument {
   id: string;
   content: string;
   title: string;
-  updatedAt: number;
+  lastModified: number;
+  wasRenamed?: boolean;
 }
 
 const openDB = (): Promise<IDBDatabase> => {
@@ -89,12 +90,19 @@ export default function Banner() {
     if (!activeId) return;
     try {
       const db = await openDB();
+      
+      // First, get the current doc to check if it was manually renamed
+      const currentDoc = await getDocument(activeId) as EditorDocument | null;
+      const wasRenamed = currentDoc?.wasRenamed || false;
+      const existingTitle = currentDoc?.title || "Untitled";
+
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
       await store.put({
+        ...currentDoc,
         id: activeId,
         content: html,
-        title: generateTitle(html),
+        title: wasRenamed ? existingTitle : generateTitle(html),
         lastModified: Date.now()
       });
       window.dispatchEvent(new CustomEvent('editor-content-updated'));
