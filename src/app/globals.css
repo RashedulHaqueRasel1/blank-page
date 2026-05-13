@@ -179,3 +179,15 @@
 ::view-transition-new(root) {
   z-index: 9999;
 }
+
+/* contentEditable Placeholder */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: #aaa;
+  pointer-events: none;
+  display: block;
+}
+
+.dark [contenteditable]:empty:before {
+  color: #444;
+}

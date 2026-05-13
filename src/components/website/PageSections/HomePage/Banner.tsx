@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { Copy, Check } from "lucide-react";
 
 const DB_NAME = "EditorDB";
 const STORE_NAME = "Documents";
@@ -12,6 +13,8 @@ interface EditorDocument {
   title: string;
   content: string;
   lastModified: number;
+  pinned?: boolean;
+  wasRenamed?: boolean;
 }
 
 // Pure Helpers - Outside component
@@ -37,9 +40,12 @@ const saveDoc = async (id: string, content: string, title: string) => {
     const getReq = store.get(id);
 
     getReq.onsuccess = () => {
-      const data = (getReq.result as EditorDocument) || { id, title: "Untitled", content: "", lastModified: Date.now() };
+      const data = (getReq.result as EditorDocument) || { id, title: "Untitled", content: "", lastModified: Date.now(), wasRenamed: false };
       data.content = content;
-      data.title = title;
+      // Only update title if it hasn't been manually renamed
+      if (!data.wasRenamed) {
+        data.title = title;
+      }
       data.lastModified = Date.now();
       store.put(data);
     };
@@ -63,24 +69,24 @@ const getDoc = async (id: string): Promise<EditorDocument | null> => {
 };
 
 export default function Banner() {
-  // Use Lazy Initialization to avoid setState inside useEffect
-  const [text, setText] = useState("");
+  const [content, setContent] = useState("");
   const [fontStyle, setFontStyle] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "draft" : "draft"));
   const [activeId, setActiveId] = useState<string | null>(() => (typeof window !== "undefined" ? localStorage.getItem("active_doc_id") : null));
+  const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; show: boolean }>({ top: 0, left: 0, show: false });
+  const [copied, setCopied] = useState(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
-  const adjustHeight = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
+  const stripHtml = (html: string) => {
+    if (typeof window === "undefined") return html;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.body.textContent || "";
   };
 
-  const generateTitle = (str: string) => {
-    const firstLine = str.trim().split("\n")[0];
+  const generateTitle = (html: string) => {
+    const text = stripHtml(html);
+    const firstLine = text.trim().split("\n")[0];
     if (!firstLine) return "Untitled";
     const words = firstLine.split(/\s+/).slice(0, 10).join(" ");
     return words.length > 50 ? words.substring(0, 50) + "..." : words;
@@ -91,17 +97,20 @@ export default function Banner() {
     const doc = await getDoc(id);
     if (doc) {
       isInitialLoad.current = true;
-      setText(doc.content || "");
+      const loadedContent = doc.content || "";
+      setContent(loadedContent);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = loadedContent;
+      }
       setActiveId(id);
       localStorage.setItem("active_doc_id", id);
 
-      const words = doc.content.trim() ? doc.content.trim().split(/\s+/).length : 0;
+      const words = stripHtml(loadedContent).trim() ? stripHtml(loadedContent).trim().split(/\s+/).length : 0;
       window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
 
       setTimeout(() => {
         isInitialLoad.current = false;
-        adjustHeight();
-        textareaRef.current?.focus();
+        editorRef.current?.focus();
       }, 50);
     }
   };
@@ -110,18 +119,40 @@ export default function Banner() {
   useEffect(() => {
     if (isInitialLoad.current || !activeId) return;
 
-    adjustHeight();
-    const currentTitle = generateTitle(text);
-    saveDoc(activeId, text, currentTitle);
+    const currentTitle = generateTitle(content);
+    saveDoc(activeId, content, currentTitle);
 
     const timeoutId = setTimeout(() => {
       window.dispatchEvent(new CustomEvent("title-updated", { detail: { id: activeId, title: currentTitle } }));
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      const words = stripHtml(content).trim() ? stripHtml(content).trim().split(/\s+/).length : 0;
       window.dispatchEvent(new CustomEvent("word-count-update", { detail: words }));
     }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [text, activeId]);
+  }, [content, activeId]);
+
+  // Selection handling for toolbar
+  useEffect(() => {
+    const handleSelection = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !editorRef.current?.contains(selection.anchorNode)) {
+        setToolbarPos((prev) => ({ ...prev, show: false }));
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      
+      setToolbarPos({
+        top: rect.top + window.scrollY - 50,
+        left: rect.left + rect.width / 2,
+        show: true
+      });
+    };
+
+    document.addEventListener("selectionchange", handleSelection);
+    return () => document.removeEventListener("selectionchange", handleSelection);
+  }, []);
 
   // Main Communication and Init
   useEffect(() => {
@@ -138,7 +169,6 @@ export default function Banner() {
     };
     window.addEventListener("font-style-update", handleFontStyle);
 
-    // Initial Load - Now we use a small timeout to avoid synchronous setState during mount
     const savedId = localStorage.getItem("active_doc_id");
     if (savedId) {
       setTimeout(() => loadDocument(savedId), 0);
@@ -150,27 +180,76 @@ export default function Banner() {
     };
   }, []);
 
-  // Sync font style height
-  useEffect(() => {
-    adjustHeight();
-  }, [fontStyle]);
+  const applyColor = (color: string) => {
+    document.execCommand("foreColor", false, color);
+    if (editorRef.current) {
+      setContent(editorRef.current.innerHTML);
+    }
+  };
+
+  const handleCopy = async () => {
+    const selection = window.getSelection();
+    if (selection) {
+      const text = selection.toString();
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <main
-      className="relative w-full min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-all duration-300 overflow-y-auto"
-      onClick={() => textareaRef.current?.focus()}
+      className="relative w-full min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-colors duration-300 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) editorRef.current?.focus();
+      }}
     >
+      {/* Floating Toolbar */}
+      {toolbarPos.show && (
+        <div 
+          className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 animate-in fade-in zoom-in slide-in-from-bottom-2 duration-200"
+          style={{ top: toolbarPos.top, left: toolbarPos.left }}
+        >
+          <div className="flex items-center gap-2 border-r border-gray-100 dark:border-white/10 pr-3 mr-1">
+            {[
+              { color: "inherit", label: "Default" },
+              { color: "#ef4444", label: "Red" },
+              { color: "#3b82f6", label: "Blue" },
+              { color: "#10b981", label: "Green" },
+              { color: "#f59e0b", label: "Amber" },
+              { color: "#8b5cf6", label: "Purple" },
+            ].map((item) => (
+              <button
+                key={item.color}
+                onClick={() => applyColor(item.color)}
+                className="w-5 h-5 rounded-full border border-gray-200 dark:border-white/20 hover:scale-125 transition-transform cursor-pointer"
+                style={{ backgroundColor: item.color === "inherit" ? "transparent" : item.color }}
+                title={item.label}
+              />
+            ))}
+          </div>
+          
+          <button
+            onClick={handleCopy}
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-gray-500 dark:text-gray-400"
+            title="Copy selection"
+          >
+            {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+          </button>
+        </div>
+      )}
+
       <section className="w-full max-w-[900px] px-6 relative z-10 flex flex-col pt-20 pb-40">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Start writing..."
+        <div
+          ref={editorRef}
+          contentEditable
+          onInput={(e) => setContent(e.currentTarget.innerHTML)}
+          className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:empty:before:content-[attr(data-placeholder)] placeholder:empty:before:text-[#aaa] dark:placeholder:empty:before:text-[#444] no-scrollbar overflow-hidden transition-colors duration-200 min-h-[50vh]"
+          data-placeholder="Start writing..."
           spellCheck={false}
-          className="w-full bg-transparent border-none outline-none resize-none leading-[1.7] text-[var(--editor-text)] placeholder:text-[#aaa] dark:placeholder:text-[#444] no-scrollbar overflow-hidden transition-all duration-300 min-h-[50vh]"
           style={{
             fontFamily: fontStyle === "classic" ? "var(--font-lora), serif" : fontStyle === "modern" ? "var(--font-cousine), monospace" : "var(--font-ibm-plex-sans), sans-serif",
-            fontSize: fontStyle === "classic" ? "20px" : fontStyle === "modern" ? "20px" : "22px"
+            fontSize: fontStyle === "classic" ? "20px" : fontStyle === "modern" ? "20px" : "22px",
           }}
         />
       </section>

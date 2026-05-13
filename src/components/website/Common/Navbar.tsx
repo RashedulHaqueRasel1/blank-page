@@ -17,6 +17,7 @@ interface EditorDocument {
   content: string;
   lastModified: number;
   pinned?: boolean;
+  wasRenamed?: boolean;
 }
 
 const THEMES = [
@@ -90,7 +91,7 @@ const createDocInDB = async (title: string): Promise<EditorDocument> => {
   const db = await openDB();
   const id = crypto.randomUUID();
   const now = Date.now();
-  const newDoc: EditorDocument = { id, title, content: "", lastModified: now, pinned: false };
+  const newDoc: EditorDocument = { id, title, content: "", lastModified: now, pinned: false, wasRenamed: false };
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
@@ -198,7 +199,7 @@ export default function Navbar() {
   const handleSaveRename = async () => {
     if (newTitleValue.trim() && newTitleValue !== renameModal.currentTitle) {
       try {
-        await updateDocInDB(renameModal.id, { title: newTitleValue.trim() });
+        await updateDocInDB(renameModal.id, { title: newTitleValue.trim(), wasRenamed: true });
         setRenameModal({ isOpen: false, id: "", currentTitle: "" });
         refreshDocs(true);
       } catch (err) { console.error(err); }
