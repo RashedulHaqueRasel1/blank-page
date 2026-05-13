@@ -53,8 +53,8 @@ Blank Page is a distraction-free, minimalist writing interface designed for high
    Create a `.env.local` file in the root:
    ```env
    OPENROUTER_API_KEY=your_openrouter_key
-   MODEL_M1=openai/gpt-4o-mini
-   MODEL_M2=meta-llama/llama-3.1-8b-instruct:free
+   MODEL_M1=********
+   MODEL_M2=*********
    INTERNAL_API_SECRET=your_secure_secret_token
    ```
 
