@@ -35,6 +35,18 @@ Experience the app here: **[https://blank-page-v1.vercel.app/](https://blank-pag
 - **Word Counter:** Monitor your progress with a real-time word count.
 - **Full Screen Mode:** Stay deeply focused with a dedicated full-screen writing mode.
 - **Auto-save:** Your work is automatically saved with every single word you type.
+- **Toast Notifications:** Sleek, glassmorphic feedback for document actions like pinning, renaming, and deleting.
+
+### 🔊 Immersive ASMR Typing (New!)
+- **Mechanical Sound Engine:** High-fidelity typing sounds using real mechanical keyboard recordings (sourced from kbs.im).
+- **Acoustic Key Profiles:** Unique acoustic signatures for **Regular**, **Spacebar**, **Enter**, and **Backspace** keys.
+- **Zero-Latency Audio:** Optimized audio pool for responsive, non-robotic typing feedback.
+- **Volume Booster:** Enhanced gain control for a satisfyingly loud ASMR experience.
+
+### 🛠️ Floating Styling Toolbar
+- **Contextual Actions:** A sleek toolbar that appears only when you select text.
+- **Rich Text Support:** Easily apply colors and copy text with a single click.
+- **Mobile Optimized:** Smart positioning on small screens to avoid native browser menu interference.
 
 ---
 
