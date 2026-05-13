@@ -144,10 +144,11 @@ export default function Banner() {
 
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
+      const isMobile = window.innerWidth < 768;
       
       setToolbarPos({
-        top: rect.top + window.scrollY - 50,
-        left: rect.left + rect.width / 2,
+        top: isMobile ? 64 : rect.top + window.scrollY - 50,
+        left: isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2,
         show: true
       });
     };
@@ -271,8 +272,12 @@ export default function Banner() {
       {/* Floating Toolbar */}
       {toolbarPos.show && (
         <div 
-          className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 animate-in fade-in zoom-in slide-in-from-bottom-2 duration-200"
-          style={{ top: toolbarPos.top, left: toolbarPos.left }}
+          className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 animate-in fade-in zoom-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200"
+          style={{ 
+            top: toolbarPos.top, 
+            left: toolbarPos.left,
+            maxWidth: "90vw"
+          }}
         >
           <div className="flex items-center gap-2 border-r border-gray-100 dark:border-white/10 pr-3 mr-1">
             {[
