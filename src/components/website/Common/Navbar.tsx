@@ -313,7 +313,6 @@ export default function Navbar() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (renameModal.isOpen) {
-        if (e.key === "Enter") handleSaveRename();
         if (e.key === "Escape") setRenameModal({ isOpen: false, id: "", currentTitle: "" });
         return;
       }
@@ -376,6 +375,9 @@ export default function Navbar() {
               type="text"
               value={newTitleValue}
               onChange={(e) => setNewTitleValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveRename();
+              }}
               className="w-full border-none outline-none px-4 py-3 rounded-xl text-[14px] mb-6"
               style={{ background: "color-mix(in srgb, var(--editor-text) 6%, transparent)", color: "var(--editor-text)" }}
               placeholder="Enter new title..."

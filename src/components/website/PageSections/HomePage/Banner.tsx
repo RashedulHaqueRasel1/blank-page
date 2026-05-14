@@ -71,7 +71,9 @@ export default function Banner() {
   const [customInstruction, setCustomInstruction] = useState("");
   const [selectedText, setSelectedText] = useState("");
   const [selectedModel, setSelectedModel] = useState("m1");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
   const [resultCopied, setResultCopied] = useState(false);
+  const [savedRange, setSavedRange] = useState<Range | null>(null);
 
   const stripHtml = (html: string) => {
     if (typeof window === "undefined") return html;
@@ -155,7 +157,6 @@ export default function Banner() {
       if (!selection || selection.isCollapsed || !editorRef.current?.contains(selection.anchorNode)) {
         setToolbarPos((prev) => ({ ...prev, show: false }));
         setShowTranslateOptions(false);
-        setTranslationResult("");
         return;
       }
 
@@ -163,6 +164,7 @@ export default function Banner() {
       if (text) setSelectedText(text);
 
       const range = selection.getRangeAt(0);
+      setSavedRange(range);
       const rect = range.getBoundingClientRect();
       const isMobile = window.innerWidth < 768;
 
@@ -264,8 +266,12 @@ export default function Banner() {
     if (!selectedText) return;
 
     const text = selectedText;
+    const currentInstruction = customInstruction;
+    setCustomInstruction("");
+    setSelectedLanguage(targetLang);
     setIsTranslating(true);
     setShowTranslateOptions(false);
+    setTranslationResult("");
 
     try {
       const response = await fetch("/api/translate", {
@@ -278,7 +284,7 @@ export default function Banner() {
         body: JSON.stringify({
           text,
           targetLang,
-          customInstruction
+          customInstruction: currentInstruction
         })
       });
 
@@ -306,6 +312,15 @@ export default function Banner() {
 
   const applyTranslation = () => {
     if (!translationResult) return;
+    
+    if (savedRange) {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+      }
+    }
+
     document.execCommand("insertHTML", false, translationResult);
     if (editorRef.current) {
       setContent(editorRef.current.innerHTML);
@@ -335,13 +350,11 @@ export default function Banner() {
         copied={copied}
         isTranslating={isTranslating}
         showTranslateOptions={showTranslateOptions}
-        customInstruction={customInstruction}
         selectedModel={selectedModel}
         models={MODELS}
         languages={LANGUAGES}
         onCopy={handleCopy}
         onToggleTranslate={() => setShowTranslateOptions(!showTranslateOptions)}
-        onSetCustomInstruction={setCustomInstruction}
         onSetModel={setSelectedModel}
         onTranslate={handleTranslate}
         onApplyColor={applyColor}
@@ -354,7 +367,7 @@ export default function Banner() {
           contentEditable
           onInput={handleInput}
           onPaste={handlePaste}
-          className={`w-full min-h-[60vh] outline-none text-[18px] md:text-[22px] leading-[1.8] font-${fontStyle} text-[var(--editor-text)] whitespace-pre-wrap transition-all duration-500 selection:bg-[var(--accent-color)] selection:text-black`}
+          className={`w-full min-h-[60vh] outline-none text-[18px] md:text-[22px] leading-[1.8] font-${fontStyle} text-[var(--editor-text)] whitespace-pre-wrap transition-all duration-500 selection:bg-[var(--accent-color)] selection:text-[var(--editor-bg)]`}
           style={{ caretColor: 'var(--accent-color)' }}
           spellCheck="false"
           data-placeholder="Start writing..."
@@ -365,9 +378,13 @@ export default function Banner() {
       <TranslationModal
         translationResult={translationResult}
         resultCopied={resultCopied}
-        onClose={() => setTranslationResult("")}
+        onClose={() => { setTranslationResult(""); setIsTranslating(false); }}
         onCopy={handleResultCopy}
         onApply={applyTranslation}
+        customInstruction={customInstruction}
+        onSetCustomInstruction={setCustomInstruction}
+        onRetranslate={() => handleTranslate(selectedLanguage)}
+        isTranslating={isTranslating}
       />
 
       <style jsx global>{`

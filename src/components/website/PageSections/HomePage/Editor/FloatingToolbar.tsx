@@ -8,13 +8,11 @@ interface FloatingToolbarProps {
   copied: boolean;
   isTranslating: boolean;
   showTranslateOptions: boolean;
-  customInstruction: string;
   selectedModel: string;
   models: { id: string; label: string }[];
   languages: string[];
   onCopy: () => void;
   onToggleTranslate: () => void;
-  onSetCustomInstruction: (val: string) => void;
   onSetModel: (id: string) => void;
   onTranslate: (lang: string) => void;
   onApplyColor: (color: string) => void;
@@ -27,13 +25,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   copied,
   isTranslating,
   showTranslateOptions,
-  customInstruction,
   selectedModel,
   models,
   languages,
   onCopy,
   onToggleTranslate,
-  onSetCustomInstruction,
   onSetModel,
   onTranslate,
   onApplyColor,
@@ -42,7 +38,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
   return (
     <div
-      className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 animate-in fade-in zoom-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200 floating-toolbar"
+      className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-[var(--navbar-bg)] text-[var(--foreground)] backdrop-blur-xl rounded-2xl shadow-2xl border border-[var(--border-color)] animate-in fade-in zoom-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200 floating-toolbar"
       style={{
         top: top,
         left: left,
@@ -52,7 +48,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       onClick={(e) => e.stopPropagation()}
     >
       {/* Formatting Section */}
-      <div className="flex items-center gap-2 border-r border-gray-100 dark:border-white/10 pr-3 mr-1">
+      <div className="flex items-center gap-2 border-r border-[var(--border-color)] pr-3 mr-1">
         {[
           { color: "inherit", label: "Default" },
           { color: "#ef4444", label: "Red" },
@@ -64,7 +60,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           <button
             key={item.color}
             onClick={() => onApplyColor(item.color)}
-            className="w-5 h-5 rounded-full border border-gray-200 dark:border-white/20 hover:scale-125 transition-transform cursor-pointer"
+            className="w-5 h-5 rounded-full border border-[var(--border-color)] hover:scale-125 transition-transform cursor-pointer"
             style={{
               backgroundColor:
                 item.color === "inherit" ? "transparent" : item.color,
@@ -77,7 +73,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       {/* Copy Button */}
       <button
         onClick={onCopy}
-        className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-gray-500 dark:text-gray-400"
+        className="p-1.5 hover:bg-[var(--border-color)] rounded-lg transition-colors cursor-pointer text-[var(--foreground)] opacity-60 hover:opacity-100"
         title="Copy selection"
       >
         {copied ? (
@@ -88,10 +84,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       </button>
 
       {/* Translation Section */}
-      <div className="relative">
+      <div className="relative flex items-center">
+        <div className="w-[1px] h-4 mx-1" style={{ background: "var(--border-color)" }} />
         <button
           onClick={onToggleTranslate}
-          className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-gray-500 dark:text-gray-400 flex items-center gap-1"
+          className="p-1.5 hover:bg-[var(--border-color)] rounded-lg transition-colors cursor-pointer text-[var(--foreground)] opacity-60 hover:opacity-100 flex items-center gap-1"
           title="Translate"
         >
           {isTranslating ? (
@@ -103,28 +100,15 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
         {showTranslateOptions && (
           <div
-            className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-2xl border border-gray-100 dark:border-white/10 py-2 z-[110] animate-in fade-in zoom-in duration-200"
+            className="absolute top-full left-0 mt-2 w-56 text-[var(--foreground)] backdrop-blur-3xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-[var(--border-color)] py-2 z-[110] animate-in fade-in zoom-in duration-200"
+            style={{ backgroundColor: "var(--background)" }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Custom Instruction */}
-            <div className="px-3 mb-2 pb-2 border-b border-gray-100 dark:border-white/10">
-              <span className="text-[10px] font-bold opacity-30 uppercase tracking-tighter mb-1 block">
-                Prompt (Optional)
-              </span>
-              <input
-                type="text"
-                placeholder="e.g. more professional"
-                value={customInstruction}
-                onChange={(e) => onSetCustomInstruction(e.target.value)}
-                onMouseDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-                className="w-full bg-black/[0.03] dark:bg-white/[0.03] border border-gray-50 dark:border-white/5 outline-none px-3 py-2 rounded-lg text-[11px] placeholder:opacity-40 focus:ring-1 focus:ring-[var(--accent-color)] transition-all"
-              />
-            </div>
+
 
             {/* AI Model Selection */}
-            <div className="px-3 mb-2 pb-2 border-b border-gray-100 dark:border-white/10">
+            <div className="px-3 mb-2 pb-2 border-b" style={{ borderColor: "var(--border-color)" }}>
               <span className="text-[10px] font-bold opacity-30 uppercase tracking-tighter">
                 AI Model
               </span>
@@ -134,9 +118,13 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                     key={m.id}
                     onClick={() => onSetModel(m.id)}
                     className={`flex-1 py-1 text-[9px] rounded-md transition-all ${selectedModel === m.id
-                        ? "bg-[var(--accent-color)] text-black cursor-pointer font-bold"
-                        : "hover:bg-gray-100 dark:hover:bg-white/5 opacity-60 cursor-pointer "
+                        ? "bg-[var(--accent-color)] cursor-pointer font-bold"
+                        : "opacity-60 cursor-pointer hover:opacity-100"
                       }`}
+                    style={{ 
+                      color: selectedModel === m.id ? "var(--background)" : "var(--foreground)",
+                      backgroundColor: selectedModel !== m.id ? "transparent" : undefined
+                    }}
                   >
                     {m.label}
                   </button>
@@ -153,7 +141,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 <button
                   key={lang}
                   onClick={() => onTranslate(lang)}
-                  className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
+                  className="w-full text-left px-3 py-1.5 text-[12px] transition-colors cursor-pointer text-[var(--foreground)] hover:bg-[var(--border-color)] font-medium rounded-md"
                 >
                   {lang}
                 </button>
@@ -161,6 +149,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             </div>
           </div>
         )}
+        
       </div>
     </div>
   );
