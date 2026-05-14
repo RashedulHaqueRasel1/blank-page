@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Copy, Check, Languages, Loader2 } from "lucide-react";
 
 interface FloatingToolbarProps {
@@ -34,11 +35,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   onTranslate,
   onApplyColor,
 }) => {
-  if (!show) return null;
+  if (!show || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed z-[100] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-[var(--navbar-bg)] text-[var(--foreground)] backdrop-blur-xl rounded-2xl shadow-2xl border border-[var(--border-color)] animate-in fade-in zoom-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200 floating-toolbar"
+      className="fixed z-[9999] -translate-x-1/2 flex items-center gap-3 p-2.5 bg-[var(--navbar-bg)] text-[var(--foreground)] backdrop-blur-xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-[var(--border-color)] animate-in fade-in zoom-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200 floating-toolbar"
       style={{
         top: top,
         left: left,
@@ -151,7 +152,8 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         )}
         
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

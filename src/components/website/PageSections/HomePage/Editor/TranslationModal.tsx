@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import React from "react";
+import { createPortal } from "react-dom";
 import { X, Copy, Check, RefreshCw, Loader2 } from "lucide-react";
 
 interface TranslationModalProps {
@@ -24,10 +25,9 @@ const TranslationModal: React.FC<TranslationModalProps> = ({
   onRetranslate,
   isTranslating,
 }) => {
-  // Use a softer check: if there's no result AND we are not currently translating, hide it.
-  if (!translationResult && !isTranslating) return null;
+  if ((!translationResult && !isTranslating) || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <>
       <div
         className="fixed inset-0 z-[145] bg-black/15 animate-in fade-in duration-300"
@@ -61,14 +61,14 @@ const TranslationModal: React.FC<TranslationModalProps> = ({
             <X size={14} />
           </button>
         </div>
-        <div className="relative mb-4 min-h-[50px]">
+        <div className="relative mb-1 min-h-[50px] border border-[var(--border-color)] rounded-xl p-2">
           {isTranslating && !translationResult ? (
             <div className="flex flex-col items-center justify-center py-4 gap-3 opacity-50">
               <Loader2 className="animate-spin text-[var(--editor-text)]" size={20} />
-              <p className="text-[12px] text-[var(--editor-text)] uppercase tracking-widest font-bold">Translating...</p>
+              <p className="text-[12px] text-[var(--editor-text)] uppercase tracking-widest font-semibold">Translating...</p>
             </div>
           ) : (
-            <p className={`text-[16px] font-semibold leading-relaxed text-[var(--editor-text)] transition-opacity ${isTranslating ? 'opacity-50' : 'opacity-100'}`}>
+            <p className={`text-[14px] leading-relaxed text-[var(--editor-text)] transition-opacity ${isTranslating ? 'opacity-50' : 'opacity-100'}`}>
               {translationResult}
             </p>
           )}
@@ -114,7 +114,8 @@ const TranslationModal: React.FC<TranslationModalProps> = ({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 

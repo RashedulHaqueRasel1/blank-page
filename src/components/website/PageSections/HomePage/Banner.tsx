@@ -168,8 +168,10 @@ export default function Banner() {
       const rect = range.getBoundingClientRect();
       const isMobile = window.innerWidth < 768;
 
+      const toolbarTop = rect.top - 60 < 10 ? rect.bottom + 10 : rect.top - 60;
+      
       setToolbarPos({
-        top: isMobile ? 64 : rect.top + window.scrollY - 50,
+        top: isMobile ? 64 : toolbarTop,
         left: isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2,
         show: true
       });
