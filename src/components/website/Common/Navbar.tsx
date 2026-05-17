@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
-  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX
+  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe
 } from "lucide-react";
+import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
 const DB_NAME = "EditorDB";
 const STORE_NAME = "Documents";
@@ -70,6 +71,21 @@ const fetchAllDocs = async (): Promise<EditorDocument[]> => {
       request.onerror = () => resolve([]);
     });
   } catch (err) { return []; }
+};
+
+const getDocument = async (id: string): Promise<EditorDocument | null> => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    return null;
+  }
 };
 
 const updateDocInDB = async (id: string, updates: Partial<EditorDocument>): Promise<void> => {
@@ -145,6 +161,19 @@ export default function Navbar() {
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string }>({ isOpen: false, id: "", currentTitle: "" });
   const [newTitleValue, setNewTitleValue] = useState("");
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "info" }>({ show: false, message: "", type: "success" });
+
+  // Publish Modal States
+  const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [publishContent, setPublishContent] = useState("");
+
+  const handleOpenPublishModal = async () => {
+    if (!activeDocId) return;
+    const doc = await getDocument(activeDocId) as EditorDocument | null;
+    if (doc) {
+      setPublishContent(doc.content || "");
+      setIsPublishOpen(true);
+    }
+  };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -487,6 +516,14 @@ export default function Navbar() {
             </div>
           )}
           <div className="flex items-center gap-5 relative">
+            <button
+              onClick={handleOpenPublishModal}
+              className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer opacity-70 hover:opacity-100 flex items-center gap-1.5"
+              title="Publish Page"
+            >
+              <Globe size={18} strokeWidth={1.5} />
+              <span className="text-[12px] font-semibold hidden md:inline">Publish</span>
+            </button>
             <div className="relative" ref={dropdownRef}>
               <button onClick={() => setShowDropdown(!showDropdown)} className="hover:text-black dark:hover:text-white transition-colors duration-200">
                 <MoreHorizontal size={19} strokeWidth={1.5} />
@@ -548,6 +585,13 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
+
+      {/* Publish Modal */}
+      <PublishModal
+        isOpen={isPublishOpen}
+        onClose={() => setIsPublishOpen(false)}
+        editorContent={publishContent}
+      />
     </>
   );
 }
