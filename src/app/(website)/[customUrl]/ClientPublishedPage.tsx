@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  Shield, Edit, AlertCircle, Clock, ArrowLeft, Loader2, Check, 
-  Volume2, VolumeX, MoreHorizontal, Palette, Type, ChevronLeft, 
-  ChevronRight, Maximize2 
+import {
+  Shield, Edit, AlertCircle, Clock, ArrowLeft, Loader2, Check,
+  Volume2, VolumeX, MoreHorizontal, Palette, Type, ChevronLeft,
+  ChevronRight, Maximize2
 } from "lucide-react";
 import Link from "next/link";
+import { io, Socket } from "socket.io-client";
 import { obfuscate, deobfuscate } from "@/utils/stealth";
 
 interface ClientPublishedPageProps {
@@ -68,6 +69,81 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const audioPool = useRef<Record<string, HTMLAudioElement>>({});
   const hasLoadedRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  // Setup Socket.IO for Live Tracking
+  useEffect(() => {
+    // Determine the server URL (ensure it matches the backend)
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:5000";
+    const socket = io(serverUrl);
+    socketRef.current = socket;
+
+    socket.emit("join-page", customUrl);
+
+    socket.on("page-updated", (newContent: string) => {
+      // Update React state
+      setContent(newContent);
+
+      // Update DOM directly if the user is a viewer, or carefully if editor.
+      if (editorRef.current && editorRef.current.innerHTML !== newContent) {
+        // Save current selection to restore cursor if possible
+        const selection = window.getSelection();
+        let cursorOffset = 0;
+        if (selection && selection.rangeCount > 0 && editorRef.current.contains(selection.anchorNode)) {
+          // A very basic cursor preservation attempt (flawed for rich HTML but works for simple text)
+          const range = selection.getRangeAt(0);
+          const preCaretRange = range.cloneRange();
+          preCaretRange.selectNodeContents(editorRef.current);
+          preCaretRange.setEnd(range.endContainer, range.endOffset);
+          cursorOffset = preCaretRange.toString().length;
+        }
+
+        editorRef.current.innerHTML = newContent;
+
+        // Try to restore cursor (this is very basic and won't work perfectly for complex HTML diffs, but it's better than jumping to start)
+        if (cursorOffset > 0 && pageData?.isEditable) {
+          try {
+            const range = document.createRange();
+            const sel = window.getSelection();
+
+            let currentOffset = 0;
+            let found = false;
+
+            const traverseNodes = (node: Node) => {
+              if (found) return;
+              if (node.nodeType === Node.TEXT_NODE) {
+                const length = node.textContent?.length || 0;
+                if (currentOffset + length >= cursorOffset) {
+                  range.setStart(node, cursorOffset - currentOffset);
+                  range.collapse(true);
+                  found = true;
+                } else {
+                  currentOffset += length;
+                }
+              } else {
+                for (let i = 0; i < node.childNodes.length; i++) {
+                  traverseNodes(node.childNodes[i]);
+                }
+              }
+            };
+
+            traverseNodes(editorRef.current);
+
+            if (found && sel) {
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          } catch (e) {
+            console.log("Cursor restoration failed after live update");
+          }
+        }
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [customUrl, pageData?.isEditable]);
 
   const stripHtml = (html: string) => {
     if (typeof window === "undefined") return html;
@@ -144,7 +220,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
     const updateTimer = () => {
       const difference = new Date(expiresAt).getTime() - Date.now();
-      
+
       if (difference <= 0) {
         setTimeLeft("Expired");
         setError(true); // Treat as 404/Not Found once it expires in real-time!
@@ -216,6 +292,12 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     const newContent = e.currentTarget.innerHTML;
     setContent(newContent);
     playTypewriterSound();
+
+    // Emit live to socket
+    if (socketRef.current) {
+      socketRef.current.emit("edit-page", { customUrl, content: newContent });
+    }
+
     triggerAutosave(newContent);
   };
 
@@ -227,6 +309,12 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
       playTypewriterSound();
+
+      // Emit live to socket
+      if (socketRef.current) {
+        socketRef.current.emit("edit-page", { customUrl, content: newContent });
+      }
+
       triggerAutosave(newContent);
     }
   };
@@ -252,7 +340,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
               This page has expired, been removed, or the link is incorrect. It is no longer accessible.
             </p>
           </div>
-          <Link 
+          <Link
             href="/"
             className="flex items-center gap-2 px-5 py-3 rounded-xl text-[12px] font-bold shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
             style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
@@ -265,24 +353,24 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   }
 
   return (
-    <main 
+    <main
       className="min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-colors duration-300 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget && pageData.isEditable) editorRef.current?.focus();
       }}
     >
-      
+
       {/* Top Header Bar */}
-      <header 
+      <header
         className="w-full h-14 border-b flex items-center justify-between px-6 md:px-12 fixed top-0 left-0 backdrop-blur-md z-50 transition-colors duration-300"
-        style={{ 
+        style={{
           background: "var(--navbar-bg)",
           borderColor: "var(--border-color)",
         }}
       >
         <div className="flex items-center gap-3">
-          <Link 
-            href="/" 
+          <Link
+            href="/"
             className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 opacity-55 hover:opacity-100 transition-all cursor-pointer"
           >
             <ArrowLeft size={16} strokeWidth={2} className="text-[var(--editor-text)]" />
@@ -303,20 +391,18 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
           )}
 
           {/* Access Control Status Tag */}
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold ${
-            pageData.isEditable 
-              ? "bg-green-500/10 text-green-600" 
-              : "bg-indigo-500/10 text-indigo-500"
-          }`}>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold ${pageData.isEditable
+            ? "bg-green-500/10 text-green-600"
+            : "bg-indigo-500/10 text-indigo-500"
+            }`}>
             {pageData.isEditable ? <Edit size={12} /> : <Shield size={12} />}
             <span>{pageData.isEditable ? "Editable" : "View Only"}</span>
           </div>
 
           {/* Auto-saving Status Tag */}
           {pageData.isEditable && (
-            <div className={`flex items-center gap-1.5 text-[10px] font-semibold transition-opacity duration-300 ${
-              isSaving ? "opacity-100 text-indigo-500" : "opacity-35 text-[var(--editor-text)]"
-            }`}>
+            <div className={`flex items-center gap-1.5 text-[10px] font-semibold transition-opacity duration-300 ${isSaving ? "opacity-100 text-indigo-500" : "opacity-35 text-[var(--editor-text)]"
+              }`}>
               {isSaving ? (
                 <>
                   <Loader2 size={12} className="animate-spin" />
@@ -356,8 +442,8 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
           {/* Settings/Themes/Fonts Dropdown */}
           <div className="relative" ref={dropdownRef}>
-            <button 
-              onClick={() => setShowDropdown(!showDropdown)} 
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
               className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer text-[var(--editor-text)] opacity-70 hover:opacity-100"
             >
               <MoreHorizontal size={19} strokeWidth={1.5} />
@@ -366,26 +452,26 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
               <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
                 {menuView === "main" ? (
                   <>
-                    <button 
-                      onClick={() => { 
-                        if (!document.fullscreenElement) document.documentElement.requestFullscreen(); 
-                        else document.exitFullscreen(); 
-                        setShowDropdown(false); 
+                    <button
+                      onClick={() => {
+                        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                        else document.exitFullscreen();
+                        setShowDropdown(false);
                         setMenuView("main");
-                      }} 
+                      }}
                       className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
                     >
                       <span className="flex items-center gap-3"><Maximize2 size={15} /> Full screen</span>
                     </button>
-                    <button 
-                      onClick={() => setMenuView("themes")} 
+                    <button
+                      onClick={() => setMenuView("themes")}
                       className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
                     >
                       <span className="flex items-center gap-3"><Palette size={15} /> Themes</span>
                       <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                     </button>
-                    <button 
-                      onClick={() => setMenuView("fonts")} 
+                    <button
+                      onClick={() => setMenuView("fonts")}
                       className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
                     >
                       <span className="flex items-center gap-3"><Type size={15} /> Font style</span>
@@ -394,17 +480,17 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                   </>
                 ) : menuView === "themes" ? (
                   <>
-                    <button 
-                      onClick={() => setMenuView("main")} 
+                    <button
+                      onClick={() => setMenuView("main")}
                       className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer text-[var(--editor-text)]"
                     >
                       <ChevronLeft size={14} /> Themes
                     </button>
                     <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
                     {THEMES.map((t) => (
-                      <button 
-                        key={t.id} 
-                        onClick={() => { setTheme(t.id); localStorage.setItem("app-theme", t.id); setShowDropdown(false); setMenuView("main"); }} 
+                      <button
+                        key={t.id}
+                        onClick={() => { setTheme(t.id); localStorage.setItem("app-theme", t.id); setShowDropdown(false); setMenuView("main"); }}
                         className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between group cursor-pointer transition-colors"
                       >
                         <div className="flex items-center gap-3">
@@ -417,17 +503,17 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                   </>
                 ) : (
                   <>
-                    <button 
-                      onClick={() => setMenuView("main")} 
+                    <button
+                      onClick={() => setMenuView("main")}
                       className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer text-[var(--editor-text)]"
                     >
                       <ChevronLeft size={14} /> Font style
                     </button>
                     <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
                     {FONTS.map((font) => (
-                      <button 
-                        key={font.id} 
-                        onClick={() => { setFontStyle(font.id); localStorage.setItem("font-style", font.id); setShowDropdown(false); setMenuView("main"); }} 
+                      <button
+                        key={font.id}
+                        onClick={() => { setFontStyle(font.id); localStorage.setItem("font-style", font.id); setShowDropdown(false); setMenuView("main"); }}
                         className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between group cursor-pointer transition-colors"
                       >
                         {font.name} {fontStyle === font.id && <Check size={14} className="text-[var(--accent-color)]" />}
@@ -442,7 +528,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       </header>
 
       {/* Shared Document Content Viewport */}
-      <div className="w-full max-w-4xl px-8 md:px-20 py-24 mt-12 flex-1">
+      <div className="w-full max-w-6xl px-8 md:px-20 py-20 mt-12 flex-1">
         <div
           ref={editorRef}
           contentEditable={pageData.isEditable}
@@ -450,7 +536,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
           onPaste={handlePaste}
           suppressContentEditableWarning
           className={`w-full outline-none text-[18px] md:text-[22px] leading-[1.8] font-${fontStyle} text-[var(--editor-text)] whitespace-pre-wrap transition-all duration-500 selection:bg-[var(--accent-color)] selection:text-[var(--editor-bg)]`}
-          style={{ 
+          style={{
             caretColor: 'var(--accent-color)',
           }}
           spellCheck="false"
