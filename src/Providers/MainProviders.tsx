@@ -10,6 +10,16 @@ export default function MainProviders({ children }: { children: ReactNode }) {
   useEffect(() => {
     const trackVisit = async () => {
       try {
+        // Fetch client's public IP client-side for accurate geolocation testing on localhost
+        let publicIp: string | undefined = undefined;
+        try {
+          const ipRes = await fetch("https://api.ipify.org?format=json");
+          const ipData = await ipRes.json();
+          publicIp = ipData.ip;
+        } catch (e) {
+          // Ignore if public IP fetching is blocked or fails
+        }
+
         const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
         await fetch(`${serverUrl}/api/v1/analytics/track`, {
           method: 'POST',
@@ -18,6 +28,7 @@ export default function MainProviders({ children }: { children: ReactNode }) {
           },
           body: JSON.stringify({
             referrer: document.referrer || 'Direct',
+            ip: publicIp,
           }),
         });
       } catch (error) {
