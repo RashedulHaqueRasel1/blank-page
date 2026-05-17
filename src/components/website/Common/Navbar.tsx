@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
-  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe
+  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe, ExternalLink
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -161,6 +161,7 @@ export default function Navbar() {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string; isPublished?: boolean }>({ isOpen: false, id: "", currentTitle: "", isPublished: false });
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string }>({ isOpen: false, id: "" });
+  const [pubActionsModal, setPubActionsModal] = useState<{ isOpen: boolean; page: any | null; top: number; left: number }>({ isOpen: false, page: null, top: 0, left: 0 });
   const [newTitleValue, setNewTitleValue] = useState("");
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "info" }>({ show: false, message: "", type: "success" });
 
@@ -268,7 +269,12 @@ export default function Navbar() {
         return;
       }
 
-      const res = await fetch(`/api/pages/${page.customUrl}`);
+      const authorId = getOrCreateWriterId();
+      const res = await fetch(`/api/pages/author/fetch/${page.customUrl}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authorId })
+      });
       const data = await res.json();
       if (!data.success || !data.data) {
         showToast("Failed to fetch page content");
@@ -663,6 +669,34 @@ export default function Navbar() {
         </div>
       )}
 
+      {/* Published Page Actions Dropdown (fixed-position to avoid sidebar overflow clipping) */}
+      {pubActionsModal.isOpen && pubActionsModal.page && (
+        <>
+          <div className="fixed inset-0 z-[150]" onClick={() => setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 })} />
+          <div
+            className="fixed w-44 rounded-xl shadow-2xl py-1.5 z-[160] animate-in fade-in zoom-in slide-in-from-top-1 duration-150"
+            style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)", top: pubActionsModal.top, left: pubActionsModal.left }}
+          >
+            <button onClick={() => { handleTogglePinPublished({} as any, pubActionsModal.page.customUrl, !!pubActionsModal.page.pinned); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
+              {pubActionsModal.page.pinned ? <><PinOff size={14} className="opacity-60" /> Unpin</> : <><Pin size={14} className="opacity-60" /> Pin to top</>}
+            </button>
+            <button onClick={() => { setRenameModal({ isOpen: true, id: pubActionsModal.page.customUrl, currentTitle: pubActionsModal.page.title || "Untitled", isPublished: true }); setNewTitleValue(pubActionsModal.page.title || "Untitled"); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
+              <Edit3 size={14} className="opacity-60" /> Rename
+            </button>
+            <button onClick={(e) => { handleImportPublishedPage(e, pubActionsModal.page); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80 text-indigo-500">
+              <FileText size={14} className="opacity-60" /> Import / Edit
+            </button>
+            <a href={`/${pubActionsModal.page.customUrl}`} target="_blank" rel="noopener noreferrer" onClick={() => setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 })} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
+              <ExternalLink size={14} className="opacity-60" /> View Live Page
+            </a>
+            <div className="h-[1px] my-1" style={{ background: "var(--border-color)" }} />
+            <button onClick={() => { openDeleteModal(pubActionsModal.page.customUrl); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer text-red-500 hover:opacity-80">
+              <Trash2 size={14} className="opacity-60" /> Delete
+            </button>
+          </div>
+        </>
+      )}
+
       <div ref={sidebarRef} className={`fixed top-0 left-0 h-full w-[280px] bg-[var(--editor-bg)] border-r border-[var(--border-color)] z-[100] transform transition-transform duration-300 ease-out shadow-2xl ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full p-6">
           <div className="flex items-center justify-between mb-10">
@@ -786,11 +820,9 @@ export default function Navbar() {
               ) : (
                 publishedPages.map((page) => (
                   <div key={page.customUrl} className="group relative flex items-center mb-1 doc-menu-container">
-                    <a
-                      href={`/${page.customUrl}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 px-4 py-3 rounded-xl text-[14px] transition-all text-left flex-1 min-w-0 pr-12 cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
+                    <button
+                      onClick={(e) => { e.preventDefault(); handleImportPublishedPage(e, page); }}
+                      className="flex items-start gap-3 px-4 py-3 rounded-xl text-[14px] transition-all text-left flex-1 min-w-0 pr-20 cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
                       style={{
                         color: "color-mix(in srgb, var(--editor-text) 80%, transparent)",
                       }}
@@ -819,34 +851,34 @@ export default function Navbar() {
                           </span>
                         </div>
                       </div>
-                    </a>
+                    </button>
 
                     <div className="absolute right-2 flex items-center gap-1">
+                      {/* View live page icon - appears on hover */}
+                      <a
+                        href={`/${page.customUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-2 transition-all rounded-lg cursor-pointer opacity-0 group-hover:opacity-40 hover:!opacity-100"
+                        style={{ color: "var(--editor-text)" }}
+                        title="View live page"
+                      >
+                        <ExternalLink size={13} />
+                      </a>
+
                       <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenuId(activeMenuId === page.customUrl ? null : page.customUrl); }}
-                        className={`p-2 transition-all rounded-lg cursor-pointer opacity-40 hover:opacity-100 ${activeMenuId === page.customUrl ? 'opacity-100' : ''}`}
-                        style={{ color: "var(--editor-text)", background: activeMenuId === page.customUrl ? "color-mix(in srgb, var(--editor-text) 6%, transparent)" : "transparent" }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setPubActionsModal({ isOpen: true, page, top: rect.bottom + 6, left: rect.right - 176 });
+                        }}
+                        className="p-2 transition-all rounded-lg cursor-pointer opacity-40 hover:opacity-100"
+                        style={{ color: "var(--editor-text)" }}
                       >
                         <MoreVertical size={14} />
                       </button>
-
-                      {activeMenuId === page.customUrl && (
-                        <div className="absolute right-full top-8 mr-2 w-44 rounded-xl shadow-2xl py-1.5 z-[110] animate-in fade-in zoom-in slide-in-from-right-2 duration-200" style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}>
-                          <button onClick={(e) => { e.preventDefault(); handleTogglePinPublished(e, page.customUrl, !!page.pinned); setActiveMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
-                            {page.pinned ? <><PinOff size={14} className="opacity-60" /> Unpin</> : <><Pin size={14} className="opacity-60" /> Pin to top</>}
-                          </button>
-                          <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRenameModal({ isOpen: true, id: page.customUrl, currentTitle: page.title || "Untitled", isPublished: true }); setNewTitleValue(page.title || "Untitled"); setActiveMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
-                            <Edit3 size={14} className="opacity-60" /> Rename
-                          </button>
-                          <button onClick={(e) => { e.preventDefault(); handleImportPublishedPage(e, page); setActiveMenuId(null); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80 text-indigo-500">
-                            <FileText size={14} className="opacity-60" /> Import / Edit
-                          </button>
-                          <div className="h-[1px] my-1" style={{ background: "var(--border-color)" }} />
-                          <button onClick={(e) => { e.preventDefault(); openDeleteModal(page.customUrl); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer text-red-500 hover:opacity-80">
-                            <Trash2 size={14} className="opacity-60" /> Delete
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))

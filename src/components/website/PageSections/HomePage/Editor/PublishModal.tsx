@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Globe, Copy, Check, X, Shield, Clock, AlertCircle, Edit, Lock, ExternalLink, ChevronDown } from "lucide-react";
+import { Globe, Copy, Check, X, Shield, Clock, AlertCircle, Edit, Lock, ExternalLink, ChevronDown, Key, Eye, EyeOff } from "lucide-react";
 
 const EXPIRY_OPTIONS = [
   { value: "1",    label: "1 Hour" },
@@ -51,6 +51,8 @@ export default function PublishModal({ isOpen, onClose, editorContent, onPublish
   const [customUrl, setCustomUrl] = useState("");
   const [isEditable, setIsEditable] = useState(false);
   const [expiresHours, setExpiresHours] = useState("24");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
@@ -75,6 +77,7 @@ export default function PublishModal({ isOpen, onClose, editorContent, onPublish
       setCustomUrl("");
       setIsEditable(false);
       setExpiresHours("24");
+      setPassword("");
       setError("");
       setPublishResult(null);
       setCopied(false);
@@ -121,6 +124,7 @@ export default function PublishModal({ isOpen, onClose, editorContent, onPublish
         content: editorContent,
         isEditable,
         expiresHours: expiresHours === "never" ? 0 : Number(expiresHours),
+        password: password || undefined,
         authorId: getOrCreateWriterId(),
         ip: activeIp || undefined,
       };
@@ -355,6 +359,41 @@ export default function PublishModal({ isOpen, onClose, editorContent, onPublish
                         </button>
                       ))}
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Secret Key (Optional) */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold tracking-widest uppercase opacity-40">
+                  Secret Key (Optional)
+                </label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40">
+                    <Key size={15} />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Leave empty for public access"
+                    className="w-full pl-11 pr-12 py-3 rounded-2xl border outline-none transition-all text-[13px] font-medium"
+                    style={{
+                      background: "color-mix(in srgb, var(--editor-text) 5%, transparent)",
+                      borderColor: "var(--border-color)",
+                      color: "var(--editor-text)",
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = "var(--accent-color)"}
+                    onBlur={(e) => e.target.style.borderColor = "var(--border-color)"}
+                  />
+                  {password && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   )}
                 </div>
               </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Shield, Edit, AlertCircle, Clock, ArrowLeft, Loader2, Check,
   Volume2, VolumeX, MoreHorizontal, Palette, Type, ChevronLeft,
-  ChevronRight, Maximize2
+  ChevronRight, Maximize2, Eye, EyeOff
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -29,6 +29,7 @@ interface PublishedPageData {
   userId: string | null;
   createdAt: string;
   updatedAt: string;
+  isProtected?: boolean;
 }
 
 const THEMES = [
@@ -61,6 +62,13 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(!initialData);
   const [timeLeft, setTimeLeft] = useState<string>("");
+
+  const [isLocked, setIsLocked] = useState(initialData?.isProtected || false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [isShaking, setIsShaking] = useState(false);
 
   // Premium Customizer States
   const [theme, setTheme] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("app-theme") || "light" : "light"));
@@ -177,7 +185,35 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     return () => {
       socket.disconnect();
     };
-  }, [customUrl, pageData?.isEditable]);
+  }, [customUrl, pageData?.isEditable, isLocked]);
+
+  const handleVerifyPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    setAuthError("");
+    
+    try {
+      const res = await fetch(`/api/pages/${customUrl}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passwordInput })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.message || "Incorrect secret key");
+      
+      setPageData(data.data);
+      setContent(data.data.content || "");
+      setIsLocked(false);
+    } catch (err: any) {
+      setAuthError(err.message);
+      setPasswordInput("");
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 600);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const stripHtml = (html: string) => {
     if (typeof window === "undefined") return html;
@@ -240,11 +276,11 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
   // Load content into editor when it is mounted and loaded
   useEffect(() => {
-    if (editorRef.current && !hasLoadedRef.current && content) {
+    if (editorRef.current && !hasLoadedRef.current && content && !isLocked) {
       editorRef.current.innerHTML = content;
       hasLoadedRef.current = true;
     }
-  }, [content]);
+  }, [content, isLocked]);
 
   // 5. Expiration Timer calculation
   useEffect(() => {
@@ -531,13 +567,119 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     );
   }
 
+
   return (
     <main
       className="min-h-screen bg-[var(--editor-bg)] flex flex-col items-center cursor-text transition-colors duration-300 overflow-y-auto"
       onClick={(e) => {
-        if (e.target === e.currentTarget && pageData.isEditable) editorRef.current?.focus();
+        if (e.target === e.currentTarget && pageData?.isEditable) editorRef.current?.focus();
       }}
     >
+      {/* Password Protection Modal Overlay */}
+      {isLocked && (
+        <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300 px-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-2xl" />
+          
+          <style>{`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              15% { transform: translateX(-8px); }
+              30% { transform: translateX(8px); }
+              45% { transform: translateX(-6px); }
+              60% { transform: translateX(6px); }
+              75% { transform: translateX(-3px); }
+              90% { transform: translateX(3px); }
+            }
+            .shake { animation: shake 0.5s ease-in-out; }
+          `}</style>
+
+          <form
+            onSubmit={handleVerifyPassword}
+            className={`relative w-full max-w-[380px] rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 ${isShaking ? 'shake' : ''}`}
+            style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}
+          >
+            {/* Top gradient accent bar */}
+            <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 40%, transparent))" }} />
+
+            <div className="p-8">
+              {/* Icon + Title */}
+              <div className="flex flex-col items-center text-center gap-4 mb-8">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                  style={{ background: "color-mix(in srgb, var(--accent-color) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--accent-color) 25%, transparent)" }}
+                >
+                  <Shield size={24} style={{ color: "var(--accent-color)" }} />
+                </div>
+                <div>
+                  <h2 className="text-[18px] font-extrabold tracking-tight mb-1" style={{ color: "var(--editor-text)" }}>Protected Page</h2>
+                  <p className="text-[12px] leading-relaxed opacity-50" style={{ color: "var(--editor-text)" }}>Enter the secret key to unlock this page</p>
+                </div>
+              </div>
+
+              {/* Input */}
+              <div className="relative mb-2">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={passwordInput}
+                  onChange={(e) => { setPasswordInput(e.target.value); setAuthError(""); }}
+                  placeholder="Secret key..."
+                  autoComplete="new-password"
+                  className="w-full outline-none px-4 py-3.5 rounded-2xl text-[14px] font-medium pr-12 transition-all"
+                  style={{
+                    background: authError
+                      ? "color-mix(in srgb, #ef4444 6%, transparent)"
+                      : "color-mix(in srgb, var(--editor-text) 6%, transparent)",
+                    border: authError ? "1.5px solid rgba(239,68,68,0.4)" : "1.5px solid transparent",
+                    color: "var(--editor-text)",
+                  }}
+                  disabled={isVerifying}
+                  autoFocus
+                />
+                {passwordInput && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
+                    style={{ color: "var(--editor-text)" }}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                )}
+              </div>
+
+              {/* Error message */}
+              {authError && (
+                <div className="flex items-center gap-2 mt-2 mb-1 px-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                  <p className="text-red-500 text-[11px] font-semibold">{authError}</p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-6">
+                <Link
+                  href="/"
+                  className="flex-1 py-3 text-[13px] font-medium rounded-2xl cursor-pointer transition-all hover:opacity-70 text-center"
+                  style={{ border: "1px solid var(--border-color)", color: "var(--editor-text)" }}
+                >
+                  Go Back
+                </Link>
+                <button
+                  type="submit"
+                  disabled={isVerifying || !passwordInput}
+                  className="flex-1 py-3 text-[13px] font-bold rounded-2xl active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40"
+                  style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+                >
+                  {isVerifying
+                    ? <Loader2 size={15} className="animate-spin mx-auto" />
+                    : "Unlock"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
 
       {/* Top Header Bar */}
       <header
