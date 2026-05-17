@@ -7,7 +7,7 @@ interface TranslationModalProps {
   resultCopied: boolean;
   onClose: () => void;
   onCopy: () => void;
-  onApply: () => void;
+  onApply?: () => void;
   customInstruction: string;
   onSetCustomInstruction: (val: string) => void;
   onRetranslate: () => void;
@@ -104,14 +104,16 @@ const TranslationModal: React.FC<TranslationModalProps> = ({
             className="flex-1 py-2 text-[12px] font-medium rounded-xl border transition-colors cursor-pointer"
             style={{ borderColor: "var(--border-color)", color: "var(--foreground)", background: "color-mix(in srgb, var(--foreground) 2%, transparent)" }}
           >
-            Cancel
+            {onApply ? "Cancel" : "Close"}
           </button>
-          <button
-            onClick={onApply}
-            className="flex-1 py-2 text-[12px] font-bold rounded-xl bg-[var(--accent-color)] hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-[var(--background)] cursor-pointer"
-          >
-            <RefreshCw size={14} /> Replace Text
-          </button>
+          {onApply && (
+            <button
+              onClick={onApply}
+              className="flex-1 py-2 text-[12px] font-bold rounded-xl bg-[var(--accent-color)] hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-[var(--background)] cursor-pointer"
+            >
+              <RefreshCw size={14} /> Replace Text
+            </button>
+          )}
         </div>
       </div>
     </>,

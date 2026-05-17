@@ -9,6 +9,8 @@ import {
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 import { obfuscate, deobfuscate } from "@/utils/stealth";
+import FloatingToolbar from "@/components/website/PageSections/HomePage/Editor/FloatingToolbar";
+import TranslationModal from "@/components/website/PageSections/HomePage/Editor/TranslationModal";
 
 interface ClientPublishedPageProps {
   customUrl: string;
@@ -46,6 +48,13 @@ const FONTS = [
   { id: "modern", name: "Modern Mono" },
 ];
 
+const LANGUAGES = ["English", "Bengali", "Arabic", "Hindi", "Spanish", "French", "German"];
+const MODELS = [
+  { id: "m1", label: "Fast Mode" },
+  { id: "m2", label: "Pro Mode" }
+];
+const API_SECRET = "blank_page_secret_token_2026_secure";
+
 export default function ClientPublishedPage({ customUrl, initialData }: ClientPublishedPageProps) {
   const [pageData, setPageData] = useState<PublishedPageData | null>(initialData);
   const [content, setContent] = useState(initialData?.content || "");
@@ -58,6 +67,19 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const [fontStyle, setFontStyle] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "classic" : "classic"));
   const [soundEnabled, setSoundEnabled] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("typewriter-sound") === "true" : false));
   const [wordCount, setWordCount] = useState(0);
+
+  // AI Translation & Selection States
+  const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; show: boolean }>({ top: 0, left: 0, show: false });
+  const [copied, setCopied] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationResult, setTranslationResult] = useState("");
+  const [showTranslateOptions, setShowTranslateOptions] = useState(false);
+  const [customInstruction, setCustomInstruction] = useState("");
+  const [selectedText, setSelectedText] = useState("");
+  const [selectedModel, setSelectedModel] = useState("m1");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [resultCopied, setResultCopied] = useState(false);
+  const [savedRange, setSavedRange] = useState<Range | null>(null);
 
   // Settings Menu Dropdown States
   const [showDropdown, setShowDropdown] = useState(false);
@@ -74,7 +96,19 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   // Setup Socket.IO for Live Tracking
   useEffect(() => {
     // Determine the server URL (ensure it matches the backend)
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:5000";
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    
+    // Skip connecting if serverUrl is local but the site is accessed from a public production domain
+    const isLocalServer = serverUrl ? (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) : false;
+    const isPublicDomain = typeof window !== 'undefined' && 
+                           window.location.hostname !== 'localhost' && 
+                           window.location.hostname !== '127.0.0.1';
+    
+    if (!serverUrl || (isLocalServer && isPublicDomain)) {
+      // Do not connect if serverUrl is missing or local server is called from a public domain
+      return;
+    }
+
     const socket = io(serverUrl);
     socketRef.current = socket;
 
@@ -326,6 +360,151 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     };
   }, []);
 
+  // Selection handling for toolbar
+  useEffect(() => {
+    const handleSelection = () => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.closest('.floating-toolbar')) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !editorRef.current?.contains(selection.anchorNode)) {
+        setToolbarPos((prev) => ({ ...prev, show: false }));
+        setShowTranslateOptions(false);
+        return;
+      }
+
+      const text = selection.toString().trim();
+      if (text) setSelectedText(text);
+
+      const range = selection.getRangeAt(0);
+      setSavedRange(range);
+      const rect = range.getBoundingClientRect();
+      const isMobile = window.innerWidth < 768;
+
+      const toolbarTop = rect.top - 60 < 10 ? rect.bottom + 10 : rect.top - 60;
+
+      setToolbarPos({
+        top: isMobile ? 64 : toolbarTop,
+        left: isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2,
+        show: true
+      });
+    };
+
+    document.addEventListener("selectionchange", handleSelection);
+    return () => document.removeEventListener("selectionchange", handleSelection);
+  }, []);
+
+  // Visual Selection Highlight
+  useEffect(() => {
+    if (showTranslateOptions && selectedText) {
+      try {
+        document.execCommand("hiliteColor", false, "rgba(255, 230, 0, 0.3)");
+      } catch (e) { }
+    } else if (!showTranslateOptions && !isTranslating) {
+      try {
+        document.execCommand("hiliteColor", false, "transparent");
+      } catch (e) { }
+    }
+  }, [showTranslateOptions, selectedText, isTranslating]);
+
+  const handleCopy = () => {
+    const selection = window.getSelection();
+    if (selection) {
+      navigator.clipboard.writeText(selection.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleTranslate = async (targetLang: string) => {
+    if (!selectedText) return;
+
+    const text = selectedText;
+    const currentInstruction = customInstruction;
+    setCustomInstruction("");
+    setSelectedLanguage(targetLang);
+    setIsTranslating(true);
+    setShowTranslateOptions(false);
+    setTranslationResult("");
+
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-m-id": selectedModel,
+          "x-api-secret": API_SECRET
+        },
+        body: JSON.stringify({
+          text,
+          targetLang,
+          customInstruction: currentInstruction
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Server Error");
+      }
+
+      setTranslationResult(data.result || "Translation failed");
+    } catch (error) {
+      console.error("Translation Error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to translate";
+      setTranslationResult(`Error: ${errorMessage}`);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleResultCopy = () => {
+    if (!translationResult) return;
+    navigator.clipboard.writeText(translationResult);
+    setResultCopied(true);
+    setTimeout(() => setResultCopied(false), 2000);
+  };
+
+  const applyTranslation = () => {
+    if (!translationResult || !pageData?.isEditable) return;
+
+    if (savedRange) {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+      }
+    }
+
+    document.execCommand("insertHTML", false, translationResult);
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      setContent(newContent);
+      
+      if (socketRef.current) {
+        socketRef.current.emit("edit-page", { customUrl, content: newContent });
+      }
+
+      triggerAutosave(newContent);
+    }
+    setTranslationResult("");
+  };
+
+  const applyColor = (color: string) => {
+    if (!pageData?.isEditable) return;
+    document.execCommand("foreColor", false, color);
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      setContent(newContent);
+      
+      if (socketRef.current) {
+        socketRef.current.emit("edit-page", { customUrl, content: newContent });
+      }
+
+      triggerAutosave(newContent);
+    }
+  };
+
   // Error/404 Page (Stealth deletion/expiration!)
   if (error || !pageData) {
     return (
@@ -527,6 +706,24 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         </div>
       </header>
 
+      {/* Floating Toolbar */}
+      <FloatingToolbar
+        show={toolbarPos.show}
+        top={toolbarPos.top}
+        left={toolbarPos.left}
+        copied={copied}
+        isTranslating={isTranslating}
+        showTranslateOptions={showTranslateOptions}
+        selectedModel={selectedModel}
+        models={MODELS}
+        languages={LANGUAGES}
+        onCopy={handleCopy}
+        onToggleTranslate={() => setShowTranslateOptions(!showTranslateOptions)}
+        onSetModel={setSelectedModel}
+        onTranslate={handleTranslate}
+        onApplyColor={pageData?.isEditable ? applyColor : () => {}}
+      />
+
       {/* Shared Document Content Viewport */}
       <div className="w-full max-w-6xl px-8 md:px-20 py-20 mt-12 flex-1">
         <div
@@ -543,6 +740,19 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
           data-placeholder="Start writing..."
         />
       </div>
+
+      {/* Translation Result Modal */}
+      <TranslationModal
+        translationResult={translationResult}
+        resultCopied={resultCopied}
+        onClose={() => { setTranslationResult(""); setIsTranslating(false); }}
+        onCopy={handleResultCopy}
+        onApply={pageData?.isEditable ? applyTranslation : undefined}
+        customInstruction={customInstruction}
+        onSetCustomInstruction={setCustomInstruction}
+        onRetranslate={() => handleTranslate(selectedLanguage)}
+        isTranslating={isTranslating}
+      />
 
       <style jsx global>{`
         .font-draft { font-family: 'Inter', sans-serif; }

@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:5000";
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    if (!serverUrl) {
+      throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+    }
     
     const response = await fetch(`${serverUrl}/api/v1/pages`, {
       method: "POST",

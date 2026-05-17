@@ -20,7 +20,18 @@ export default function MainProviders({ children }: { children: ReactNode }) {
           // Ignore if public IP fetching is blocked or fails
         }
 
-        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000';
+        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+        
+        // Skip tracking if serverUrl is local but the site is accessed from a public production domain
+        const isLocalServer = serverUrl ? (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) : false;
+        const isPublicDomain = typeof window !== 'undefined' && 
+                               window.location.hostname !== 'localhost' && 
+                               window.location.hostname !== '127.0.0.1';
+        
+        if (!serverUrl || (isLocalServer && isPublicDomain)) {
+          // Do not fetch if serverUrl is missing or local server is called from a public domain
+          return;
+        }
         
         // Disguise and obfuscate tracking payload by converting it to Base64
         const rawPayload = {

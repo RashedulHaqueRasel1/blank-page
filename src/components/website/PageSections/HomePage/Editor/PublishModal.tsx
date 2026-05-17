@@ -16,6 +16,7 @@ interface PublishModalProps {
   isOpen: boolean;
   onClose: () => void;
   editorContent: string;
+  onPublishSuccess?: () => void;
 }
 
 interface PublishResult {
@@ -46,7 +47,7 @@ const getOrCreateWriterId = (): string => {
   return id;
 };
 
-export default function PublishModal({ isOpen, onClose, editorContent }: PublishModalProps) {
+export default function PublishModal({ isOpen, onClose, editorContent, onPublishSuccess }: PublishModalProps) {
   const [customUrl, setCustomUrl] = useState("");
   const [isEditable, setIsEditable] = useState(false);
   const [expiresHours, setExpiresHours] = useState("24");
@@ -137,6 +138,7 @@ export default function PublishModal({ isOpen, onClose, editorContent }: Publish
       }
 
       setPublishResult(data.data);
+      onPublishSuccess?.();
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Something went wrong while publishing";
       setError(errMsg);

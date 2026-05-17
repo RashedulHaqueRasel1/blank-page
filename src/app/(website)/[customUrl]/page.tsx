@@ -9,7 +9,10 @@ interface PageProps {
 export default async function PublishedPage({ params }: PageProps) {
   const { customUrl } = await params;
   
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:5000";
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!serverUrl) {
+    throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+  }
   let initialData = null;
 
   try {

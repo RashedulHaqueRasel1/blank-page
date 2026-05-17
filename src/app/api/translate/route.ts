@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       "m1": process.env.MODEL_M1,
       "m2": process.env.MODEL_M2
     };
-    const model = modelMap[mId as string] || process.env.MODEL_M1 || "openai/gpt-4o-mini";
+    const model = modelMap[mId as string] || process.env.MODEL_M1;
 
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
