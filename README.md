@@ -1,6 +1,6 @@
 # Blank Page — Minimalist AI-Powered Writing Editor & Publishing Platform
 
-**Blank Page** is a distraction-free, privacy-first writing application built for creators who want to write, publish, and share their work instantly — with zero logins required. It combines a local-first offline editor with a powerful real-time publishing engine, AI translation, and optional password protection for sensitive content.
+**Blank Page** is a distraction-free, privacy-first writing application built for creators who want to write, publish, and share their work instantly — with zero logins required. It combines a local-first offline editor with a powerful real-time publishing engine, AI translation, optional password protection, and self-destructing one-time view pages.
 
 ---
 
@@ -16,14 +16,18 @@
 - **One-Click Publish** — Exports a draft to the cloud instantly, generating a unique shareable URL (e.g. `yoursite.com/bp-xyz123`).
 - **Configurable Access Mode** — Authors choose `View Only` or `Editable` (real-time collaborative) mode per page.
 - **Flexible Expiration** — Set auto-expiry from 1 Hour to 30 Days, or publish indefinitely.
+- **🔥 One Time View** — A special expiration mode where the page is permanently deleted from the database after the first visitor loads it. The viewer sees a red warning banner: *"This is a One Time View page — save what you need now."* Authors cannot "Update Live" a one-time view page — they must republish.
 - **🔐 Optional Password Protection** — Authors can set a `Secret Key` during publishing. Protected pages never leak content to the network — the server completely strips the content from the response and returns only `{ isProtected: true }`. Visitors must pass a verified password check to unlock the page.
 
 ### 🛡️ 3. Author Identity & Page Management
 - **Persistent Identity (No Login)** — A `writer-id` (e.g. `user-x8f9a`) is generated once and stored in `localStorage`. This acts as the author's permanent identity across sessions.
-- **Author-Only Bypass** — Authors can import and edit their own password-protected pages without needing to enter the password.
+- **Author-Only Bypass** — Authors can import and edit their own password-protected pages without needing to enter the password. One-time view pages are also exempt from self-destruction when fetched by their author.
 - **Published Pages Sidebar** — View all published pages with their status (Editable/View Only), expiry indicator, and live URL badge.
-- **Sidebar Actions** — Click any published page to **import it to the editor**. A hover icon opens it in a new tab. The `⋮` menu provides: **Pin to top**, **Rename**, **Import/Edit**, **View Live**, and **Delete**.
-- **Update Live** — When a local draft is linked to a live published page, the Publish button becomes a glowing **Update Live** button to push changes instantly.
+- **Sidebar Actions:**
+  - **Click a page row** → directly imports it into the editor for editing
+  - **Hover** → reveals an `↗` icon to open the live URL in a new tab
+  - **3-dot menu** → opens a fixed-position compact dropdown (no clipping) with: **Pin to top**, **Rename**, **Import/Edit**, **View Live Page**, **Delete**
+- **Update Live** — When a local draft is linked to a live published page, the Publish button becomes a glowing **Update Live** button to push changes instantly. This button is hidden for one-time view pages.
 - **Word-Level Edit Audit** — Every update is logged server-side with a computed word diff (added vs. removed words), timestamp, and title changes.
 
 ### 🤖 4. AI-Powered Translation
@@ -40,6 +44,7 @@
 - **Network Tab Protection** — The frontend never exposes the backend URL. All requests are proxied through Next.js API routes (`/api/pages/...`). Viewers cannot see the server address.
 - **Strict Data Masking** — Server responses only expose non-sensitive fields. Internal MongoDB IDs, author logs, and raw edit histories are never included in public responses.
 - **Content Shielding** — Password-protected pages have their `content` field nullified server-side before any response is sent to unauthorized viewers.
+- **One-Time Destruction** — Self-destructing pages are soft-deleted immediately after the first successful GET, before the response is even returned to the client.
 
 ---
 
@@ -124,23 +129,23 @@ blank-page/
 ├── src/
 │   ├── app/
 │   │   ├── (website)/
-│   │   │   └── [customUrl]/          # Shared page viewer
-│   │   │       ├── page.tsx          # SSR page shell
-│   │   │       └── ClientPublishedPage.tsx  # Full interactive client
+│   │   │   └── [customUrl]/                  # Shared page viewer
+│   │   │       ├── page.tsx                  # SSR page shell
+│   │   │       └── ClientPublishedPage.tsx   # Full interactive client
 │   │   └── api/
-│   │       ├── pages/                # Proxy routes to backend
+│   │       ├── pages/                        # Proxy routes to backend
 │   │       │   ├── [customUrl]/
-│   │       │   │   ├── route.ts      # GET, PATCH, PUT, DELETE
-│   │       │   │   └── verify/       # POST password verification
+│   │       │   │   ├── route.ts              # GET, PATCH, PUT, DELETE
+│   │       │   │   └── verify/route.ts       # POST password verification
 │   │       │   └── author/
-│   │       │       └── fetch/[customUrl]/   # POST author bypass fetch
-│   │       └── translate/            # AI translation proxy
+│   │       │       └── fetch/[customUrl]/    # POST author bypass fetch
+│   │       └── translate/                    # AI translation proxy
 │   └── components/
 │       └── website/
 │           ├── Common/
-│           │   └── Navbar.tsx        # Sidebar, publish controls, modals
+│           │   └── Navbar.tsx                # Sidebar, publish controls, modals
 │           └── PageSections/HomePage/Editor/
-│               ├── PublishModal.tsx  # Publish settings (URL, expiry, password)
+│               ├── PublishModal.tsx          # Publish settings (URL, expiry, password, one-time)
 │               ├── FloatingToolbar.tsx
 │               └── TranslationModal.tsx
 ```
@@ -152,17 +157,37 @@ blank-page/
 ```
 Author publishes with Secret Key
          ↓
-Backend stores hashed password in MongoDB
+Backend stores password in MongoDB
          ↓
 Visitor loads /[customUrl]
          ↓
 Backend detects password → strips content → returns { isProtected: true }
          ↓
-Frontend shows "Protected Page" modal (shake on wrong key)
+Frontend shows "Protected Page" modal
+  • Wrong password → input turns red + modal shakes
+  • Correct password → POST /verify → content unlocks
          ↓
-Visitor enters correct key → POST /api/pages/[url]/verify
+Author fetches own page → POST /author/fetch → bypasses password entirely
+```
+
+---
+
+## 🔥 One Time View Flow
+
+```
+Author publishes with "🔥 One Time View" selected
          ↓
-Backend verifies → returns full content → page unlocks
+oneTimeView: true stored in MongoDB
+         ↓
+First visitor loads /[customUrl]
+         ↓
+Backend serves content → immediately soft-deletes (isDeleted: true)
+         ↓
+Visitor sees red banner: "One Time View — save what you need now"
+         ↓
+Any subsequent visitor → 404 Page Not Found
+         ↓
+Author sidebar: "Update Live" button hidden → must republish
 ```
 
 ---
