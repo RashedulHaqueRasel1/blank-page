@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Globe, Copy, Check, X, Shield, Clock, AlertCircle, Edit, Lock, ExternalLink, ChevronDown, Key, Eye, EyeOff } from "lucide-react";
 
 const EXPIRY_OPTIONS = [
+  { value: "onetime", label: "🔥 One Time View" },
   { value: "1",    label: "1 Hour" },
   { value: "4",    label: "4 Hours" },
   { value: "24",   label: "24 Hours (1 Day)" },
@@ -123,7 +124,8 @@ export default function PublishModal({ isOpen, onClose, editorContent, onPublish
         customUrl: customUrl.trim(),
         content: editorContent,
         isEditable,
-        expiresHours: expiresHours === "never" ? 0 : Number(expiresHours),
+        oneTimeView: expiresHours === "onetime",
+        expiresHours: expiresHours === "never" || expiresHours === "onetime" ? 0 : Number(expiresHours),
         password: password || undefined,
         authorId: getOrCreateWriterId(),
         ip: activeIp || undefined,

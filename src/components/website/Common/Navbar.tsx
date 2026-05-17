@@ -909,7 +909,7 @@ export default function Navbar() {
             </div>
           )}
           <div className="flex items-center gap-5 relative">
-            {activeDocPublishedUrl ? (
+            {activeDocPublishedUrl && !publishedPages.find(p => p.customUrl === activeDocPublishedUrl)?.oneTimeView ? (
               <button
                 onClick={handleSyncLivePage}
                 className="text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300 transition-colors duration-200 cursor-pointer flex items-center gap-1.5 relative group"

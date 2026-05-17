@@ -21,6 +21,7 @@ interface PublishedPageData {
   id: string;
   customUrl: string;
   content: string;
+  title?: string | null;
   isEditable: boolean;
   expiresAt: string | null;
   isDeleted: boolean;
@@ -30,6 +31,7 @@ interface PublishedPageData {
   createdAt: string;
   updatedAt: string;
   isProtected?: boolean;
+  oneTimeView?: boolean;
 }
 
 const THEMES = [
@@ -711,6 +713,14 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
             </div>
           )}
 
+          {/* One-Time View Tag */}
+          {pageData.oneTimeView && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold">
+              <Shield size={12} />
+              <span>One Time View</span>
+            </div>
+          )}
+
           {/* Access Control Status Tag */}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold ${pageData.isEditable
             ? "bg-green-500/10 text-green-600"
@@ -866,8 +876,19 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         onApplyColor={pageData?.isEditable ? applyColor : () => {}}
       />
 
+      {/* One-Time View Warning Banner */}
+      {pageData.oneTimeView && (
+        <div
+          className="w-full fixed top-14 left-0 z-40 flex items-center justify-center gap-2.5 px-6 py-2.5 text-[11px] font-semibold animate-in slide-in-from-top-1 duration-300"
+          style={{ background: "color-mix(in srgb, #ef4444 10%, transparent)", borderBottom: "1px solid color-mix(in srgb, #ef4444 20%, transparent)", color: "#ef4444" }}
+        >
+          <Shield size={13} className="shrink-0" />
+          <span>This is a <strong>One Time View</strong> page — it has already been marked for deletion. Save what you need now.</span>
+        </div>
+      )}
+
       {/* Shared Document Content Viewport */}
-      <div className="w-full max-w-6xl px-8 md:px-20 py-20 mt-12 flex-1">
+      <div className={`w-full max-w-6xl px-8 md:px-20 flex-1 ${pageData.oneTimeView ? 'py-28 mt-12' : 'py-20 mt-12'}`}>
         <div
           ref={editorRef}
           contentEditable={pageData.isEditable}
