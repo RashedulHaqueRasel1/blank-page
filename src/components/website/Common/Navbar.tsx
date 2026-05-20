@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
-  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe, ExternalLink
+  Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe, ExternalLink,
+  PanelLeft, SquarePen, Library, User, ShieldCheck
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -155,6 +156,11 @@ export default function Navbar() {
   const [wordCount, setWordCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileStep, setProfileStep] = useState<"email" | "otp" | "pending">("email");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileOtp, setProfileOtp] = useState("");
+  const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [menuView, setMenuView] = useState("main");
@@ -168,6 +174,61 @@ export default function Navbar() {
   // Publish Modal States
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [publishContent, setPublishContent] = useState("");
+  const isProfileEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileEmail.trim());
+  const isProfileOtpValid = /^\d{6}$/.test(profileOtp);
+
+  const updateOtpDigit = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const otp = profileOtp.padEnd(6, " ").slice(0, 6).split("");
+    otp[index] = digit || " ";
+    setProfileOtp(otp.join(""));
+    if (digit && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: ReactKeyboardEvent<HTMLInputElement>) => {
+    const otp = profileOtp.padEnd(6, " ").slice(0, 6).split("");
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      if (otp[index] !== " ") {
+        otp[index] = " ";
+        setProfileOtp(otp.join(""));
+        return;
+      }
+      if (index > 0) {
+        otp[index - 1] = " ";
+        setProfileOtp(otp.join(""));
+        otpInputRefs.current[index - 1]?.focus();
+      }
+      return;
+    }
+
+    if (e.key === "Delete") {
+      e.preventDefault();
+      otp[index] = " ";
+      setProfileOtp(otp.join(""));
+      return;
+    }
+
+    if (e.key === "ArrowLeft" && index > 0) {
+      e.preventDefault();
+      otpInputRefs.current[index - 1]?.focus();
+    }
+
+    if (e.key === "ArrowRight" && index < 5) {
+      e.preventDefault();
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: ReactClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedOtp = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    setProfileOtp(pastedOtp.padEnd(6, " "));
+    otpInputRefs.current[Math.min(pastedOtp.length, 5)]?.focus();
+  };
 
   // Tab states: 'local' (drafts) or 'published' (pages in MongoDB)
   const [sidebarTab, setSidebarTab] = useState<"local" | "published">("local");
@@ -624,6 +685,262 @@ export default function Navbar() {
 
       {showSidebar && <div className="fixed inset-0 bg-black/10 dark:bg-black/40 backdrop-blur-xl z-[90] transition-all duration-300" />}
 
+      {showProfileModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center px-5 animate-in fade-in duration-200">
+          <button
+            className="absolute inset-0 bg-black/10 backdrop-blur-[2px] cursor-default"
+            onClick={() => setShowProfileModal(false)}
+            aria-label="Close profile sign in"
+          />
+          <div
+            className="relative w-full max-w-[380px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+              color: "var(--editor-text)",
+            }}
+          >
+            <button
+              onClick={() => setShowProfileModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 opacity-45 transition-opacity hover:opacity-100 cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X size={16} strokeWidth={1.8} />
+            </button>
+            {profileStep === "email" ? (
+              <>
+                <div className="flex items-start gap-4 pr-8">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                    style={{
+                      background: "color-mix(in srgb, var(--editor-text) 7%, transparent)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    <User size={19} strokeWidth={1.8} />
+                  </div>
+                  <div>
+                    <h2 className="text-[20px] font-semibold tracking-tight">Back up your work</h2>
+                    <p className="mt-1.5 text-[13px] leading-5 opacity-60">
+                      Sign in with email to save drafts, published pages, and recover them on any device.
+                    </p>
+                  </div>
+                </div>
+                <div
+                  className="mt-5 rounded-xl border px-4 py-3 text-[12px] leading-5"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                  }}
+                >
+                  Your local writing stays here. Email backup keeps it safer for later.
+                </div>
+                <label className="mt-6 block text-[12px] font-semibold opacity-60" htmlFor="profile-email">
+                  Your email
+                </label>
+                <input
+                  id="profile-email"
+                  type="email"
+                  autoFocus
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && isProfileEmailValid) setProfileStep("otp");
+                  }}
+                  placeholder="you@example.com"
+                  className="mt-2 w-full rounded-xl border px-4 py-3 text-[14px] outline-none transition-colors focus:border-current"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!isProfileEmailValid}
+                  onClick={() => setProfileStep("otp")}
+                  className="mt-4 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+                  style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+                >
+                  Continue
+                </button>
+              </>
+            ) : profileStep === "otp" ? (
+              <>
+                <div className="flex items-start gap-4 pr-8">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                    style={{
+                      background: "color-mix(in srgb, var(--editor-text) 7%, transparent)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    <ShieldCheck size={20} strokeWidth={1.8} />
+                  </div>
+                  <div>
+                    <h2 className="text-[20px] font-semibold tracking-tight">Enter verification code</h2>
+                    <p className="mt-1.5 text-[13px] leading-5 opacity-60">
+                      We sent a 6-digit code to <span className="font-semibold opacity-90">{profileEmail}</span>.
+                    </p>
+                  </div>
+                </div>
+                <label className="mt-6 block text-[12px] font-semibold opacity-60" htmlFor="profile-otp">
+                  Your OTP
+                </label>
+                <div className="mt-2 grid grid-cols-6 gap-2" id="profile-otp">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <input
+                      key={index}
+                      ref={(node) => {
+                        otpInputRefs.current[index] = node;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus={index === 0}
+                      maxLength={1}
+                      value={profileOtp[index] === " " ? "" : profileOtp[index] || ""}
+                      onChange={(e) => updateOtpDigit(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={handleOtpPaste}
+                      onFocus={(e) => e.currentTarget.select()}
+                      aria-label={`OTP digit ${index + 1}`}
+                      className="aspect-square w-full rounded-xl border text-center font-mono text-[20px] font-semibold outline-none transition-colors focus:border-current"
+                      style={{
+                        background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                        borderColor: "var(--border-color)",
+                        color: "var(--editor-text)",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  disabled={!isProfileOtpValid}
+                  onClick={() => setProfileStep("pending")}
+                  className="mt-4 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+                  style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+                >
+                  Verify and continue
+                </button>
+                <div className="mt-4 flex items-center justify-between text-[12px]">
+                  <button
+                    type="button"
+                    onClick={() => setProfileStep("email")}
+                    className="font-semibold opacity-55 transition-opacity hover:opacity-100 cursor-pointer"
+                  >
+                    Change email
+                  </button>
+                  <button
+                    type="button"
+                    className="font-semibold opacity-55 transition-opacity hover:opacity-100 cursor-pointer"
+                  >
+                    Resend code
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col items-center text-center">
+                  <div
+                    className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border"
+                    style={{
+                      background: "color-mix(in srgb, var(--editor-text) 6%, transparent)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    <ShieldCheck size={24} strokeWidth={1.8} />
+                  </div>
+                  <span
+                    className="mb-3 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide opacity-70"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    Early access
+                  </span>
+                  {/* <h2 className="text-[21px] font-semibold tracking-tight">Backup access requested</h2> */}
+                   <h2 className="text-[21px] font-semibold tracking-tight">Coming soon ...</h2>
+                  <p className="mt-2 max-w-[300px] text-[13px] leading-6 opacity-60">
+                    Secure backup for drafts and published pages is currently in development. We will email you when it is ready.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(false)}
+                  className="mt-6 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] cursor-pointer"
+                  style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+                >
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <aside className="fixed left-0 top-0 z-[80] flex h-screen w-12 sm:w-[52px] flex-col items-center border-r border-[var(--border-color)] bg-[var(--editor-bg)] text-[var(--editor-text)] shadow-[10px_0_30px_rgba(0,0,0,0.08)] transition-colors duration-300">
+        <div className="flex w-full flex-col items-center gap-3 pt-3">
+          <button
+            onClick={() => { setShowSidebar(true); refreshDocs(true); }}
+            className="group relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:opacity-90 cursor-pointer"
+            style={{ background: "color-mix(in srgb, var(--editor-text) 8%, transparent)" }}
+            aria-label="Open sidebar"
+          >
+            <PanelLeft size={18} strokeWidth={1.7} />
+            <span
+              className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+              style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+            >
+              Open sidebar
+            </span>
+          </button>
+          <button
+            onClick={() => handleCreateNewDoc()}
+            className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+            style={{ color: "var(--editor-text)" }}
+            aria-label="New document"
+          >
+            <SquarePen size={18} strokeWidth={1.7} />
+            <span
+              className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+              style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+            >
+              New document
+            </span>
+          </button>
+          <button
+            onClick={() => { setSidebarTab("published"); setShowSidebar(true); fetchPublishedPages(); }}
+            className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+            style={{ color: "var(--editor-text)" }}
+            aria-label="Published pages"
+          >
+            <Library size={18} strokeWidth={1.7} />
+            <span
+              className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+              style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+            >
+              Published pages
+            </span>
+          </button>
+        </div>
+        <button
+          onClick={() => { setProfileStep("email"); setProfileOtp(""); setShowProfileModal(true); }}
+          className="group relative mt-auto mb-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:opacity-90 cursor-pointer"
+          style={{
+            background: "color-mix(in srgb, var(--editor-text) 8%, transparent)",
+            color: "var(--editor-text)",
+            border: "1px solid var(--border-color)",
+          }}
+          aria-label="Profile"
+        >
+          <User size={16} strokeWidth={1.7} />
+          <span
+            className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+            style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+          >
+            Profile
+          </span>
+        </button>
+      </aside>
+
       {/* Rename Modal */}
       {renameModal.isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300">
@@ -888,9 +1205,9 @@ export default function Navbar() {
         </div>
       </div>
 
-      <nav className="w-full h-14 bg-[var(--navbar-bg)] backdrop-blur-md md:bg-transparent md:backdrop-blur-none flex items-center justify-between px-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
+      <nav className="w-full h-14 bg-[var(--navbar-bg)] backdrop-blur-md md:bg-transparent md:backdrop-blur-none flex items-center justify-between pl-16 pr-4 sm:pl-[70px] sm:pr-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
         <div className="flex items-center gap-5 md:pointer-events-auto">
-          <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200">
+          <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200">
             <AlignLeft size={22} strokeWidth={1.5} />
           </button>
         </div>
