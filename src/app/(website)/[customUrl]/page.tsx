@@ -1,5 +1,5 @@
 import React from "react";
-import ClientPublishedPage from "./ClientPublishedPage";
+import ClientPublishedPage from "@/components/website/PageSections/ClientPublishedPage/ClientPublishedPage";
 import { headers } from "next/headers";
 
 interface PageProps {
@@ -21,7 +21,7 @@ export default async function PublishedPage({ params }: PageProps) {
     const realIp = headersList.get('x-real-ip');
     const clientIp = forwardedFor ? forwardedFor.split(',')[0] : (realIp || '127.0.0.1');
 
-    const res = await fetch(`${serverUrl}/api/v1/pages/${customUrl}`, { 
+    const res = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/view`, { 
       cache: 'no-store',
       headers: {
         'x-forwarded-for': clientIp

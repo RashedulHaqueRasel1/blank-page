@@ -4,12 +4,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { Globe, Copy, Check, X, Shield, Clock, AlertCircle, Edit, Lock, ExternalLink, ChevronDown, Key, Eye, EyeOff } from "lucide-react";
 
 const EXPIRY_OPTIONS = [
-  { value: "onetime", label: "🔥 One Time View" },
-  { value: "1",    label: "1 Hour" },
-  { value: "4",    label: "4 Hours" },
-  { value: "24",   label: "24 Hours (1 Day)" },
-  { value: "72",   label: "72 Hours (3 Days)" },
-  { value: "720",  label: "30 Days" },
+  { value: "onetime", label: "One Time View" },
+  { value: "1", label: "1 Hour" },
+  { value: "4", label: "4 Hours" },
+  { value: "24", label: "24 Hours (1 Day)" },
+  { value: "72", label: "72 Hours (3 Days)" },
+  { value: "720", label: "30 Days" },
   { value: "never", label: "Unlimited (Never Expires)" },
 ];
 

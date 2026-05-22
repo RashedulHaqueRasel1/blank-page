@@ -40,7 +40,7 @@ export default function MainProviders({ children }: { children: ReactNode }) {
         };
         const obfuscatedData = btoa(JSON.stringify(rawPayload));
 
-        await fetch(`${serverUrl}/api/v1/sys/init`, {
+        await fetch(`${serverUrl}/api/v1/analytics/track-visit`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

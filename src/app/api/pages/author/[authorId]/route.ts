@@ -11,7 +11,7 @@ export async function GET(
       throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
     }
 
-    const response = await fetch(`${serverUrl}/api/v1/pages/author/${authorId}`, {
+    const response = await fetch(`${serverUrl}/api/v1/pages/author/${authorId}/list`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

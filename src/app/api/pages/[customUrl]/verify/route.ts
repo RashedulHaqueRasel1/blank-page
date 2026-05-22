@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
     }
     
-    const response = await fetch(`${serverUrl}/api/v1/pages/verify/${customUrl}`, {
+    const response = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/verify-password`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

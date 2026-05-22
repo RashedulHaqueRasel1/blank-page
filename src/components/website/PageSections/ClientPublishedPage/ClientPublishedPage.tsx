@@ -12,12 +12,12 @@ import { obfuscate, deobfuscate } from "@/utils/stealth";
 import FloatingToolbar from "@/components/website/PageSections/HomePage/Editor/FloatingToolbar";
 import TranslationModal from "@/components/website/PageSections/HomePage/Editor/TranslationModal";
 
-interface ClientPublishedPageProps {
+export interface ClientPublishedPageProps {
   customUrl: string;
   initialData: PublishedPageData | null;
 }
 
-interface PublishedPageData {
+export interface PublishedPageData {
   id: string;
   customUrl: string;
   content: string;
