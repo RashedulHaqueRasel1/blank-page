@@ -119,10 +119,30 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       return;
     }
 
-    const socket = io(serverUrl);
+    let socketUrl = serverUrl;
+    try {
+      if (serverUrl.startsWith("http://") || serverUrl.startsWith("https://")) {
+        socketUrl = new URL(serverUrl).origin;
+      }
+    } catch (e) {
+      console.error("Invalid serverUrl for socket:", e);
+    }
+
+    const socket = io(socketUrl);
     socketRef.current = socket;
 
-    socket.emit("join-page", customUrl);
+    socket.on("connect", () => {
+      console.log("🔌 Connected to Socket.IO server:", socket.id);
+      socket.emit("join-page", customUrl);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("🔌 Socket.IO connection error:", err);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("🔌 Disconnected from Socket.IO server:", reason);
+    });
 
     socket.on("page-updated", (newContent: string) => {
       // Update React state
