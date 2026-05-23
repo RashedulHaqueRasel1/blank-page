@@ -20,7 +20,7 @@ export default function MainProviders({ children }: { children: ReactNode }) {
           // Ignore if public IP fetching is blocked or fails
         }
 
-        const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+        const serverUrl = process.env.NEXT_PUBLIC_API_URL;
         
         // Skip tracking if serverUrl is local but the site is accessed from a public production domain
         const isLocalServer = serverUrl ? (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) : false;
@@ -40,7 +40,7 @@ export default function MainProviders({ children }: { children: ReactNode }) {
         };
         const obfuscatedData = btoa(JSON.stringify(rawPayload));
 
-        await fetch(`${serverUrl}/api/v1/analytics/track-visit`, {
+        await fetch(`${serverUrl}/analytics/track-visit`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

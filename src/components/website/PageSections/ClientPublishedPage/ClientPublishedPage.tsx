@@ -106,14 +106,14 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   // Setup Socket.IO for Live Tracking
   useEffect(() => {
     // Determine the server URL (ensure it matches the backend)
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-    
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
+
     // Skip connecting if serverUrl is local but the site is accessed from a public production domain
     const isLocalServer = serverUrl ? (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) : false;
-    const isPublicDomain = typeof window !== 'undefined' && 
-                           window.location.hostname !== 'localhost' && 
-                           window.location.hostname !== '127.0.0.1';
-    
+    const isPublicDomain = typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1';
+
     if (!serverUrl || (isLocalServer && isPublicDomain)) {
       // Do not connect if serverUrl is missing or local server is called from a public domain
       return;
@@ -193,7 +193,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     e.preventDefault();
     setIsVerifying(true);
     setAuthError("");
-    
+
     try {
       const res = await fetch(`/api/pages/${customUrl}/verify`, {
         method: "POST",
@@ -201,9 +201,9 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         body: JSON.stringify({ password: passwordInput })
       });
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.message || "Incorrect secret key");
-      
+
       setPageData(data.data);
       setContent(data.data.content || "");
       setIsLocked(false);
@@ -518,7 +518,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
-      
+
       if (socketRef.current) {
         socketRef.current.emit("edit-page", { customUrl, content: newContent });
       }
@@ -534,7 +534,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
-      
+
       if (socketRef.current) {
         socketRef.current.emit("edit-page", { customUrl, content: newContent });
       }
@@ -581,7 +581,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       {isLocked && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] animate-in fade-in duration-300 px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-2xl" />
-          
+
           <style>{`
             @keyframes shake {
               0%, 100% { transform: translateX(0); }
@@ -873,7 +873,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         onToggleTranslate={() => setShowTranslateOptions(!showTranslateOptions)}
         onSetModel={setSelectedModel}
         onTranslate={handleTranslate}
-        onApplyColor={pageData?.isEditable ? applyColor : () => {}}
+        onApplyColor={pageData?.isEditable ? applyColor : () => { }}
       />
 
       {/* One-Time View Warning Banner */}

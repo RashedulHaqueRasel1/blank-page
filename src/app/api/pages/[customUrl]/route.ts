@@ -7,12 +7,12 @@ interface RouteParams {
 export async function GET(request: Request, { params }: RouteParams) {
   try {
     const { customUrl } = await params;
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!serverUrl) {
-      throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+      throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables");
     }
     
-    const response = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/view`);
+    const response = await fetch(`${serverUrl}/pages/${customUrl}/view`);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error: any) {
@@ -24,12 +24,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   try {
     const { customUrl } = await params;
     const body = await request.json();
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!serverUrl) {
-      throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+      throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables");
     }
     
-    const response = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/public-edit`, {
+    const response = await fetch(`${serverUrl}/pages/${customUrl}/public-edit`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -53,12 +53,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const { customUrl } = await params;
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!serverUrl) {
-      throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+      throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables");
     }
     
-    const response = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/delete`, {
+    const response = await fetch(`${serverUrl}/pages/${customUrl}/delete`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -76,12 +76,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const { customUrl } = await params;
     const body = await request.json();
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!serverUrl) {
-      throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+      throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables");
     }
     
-    const response = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/secure-update`, {
+    const response = await fetch(`${serverUrl}/pages/${customUrl}/secure-update`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

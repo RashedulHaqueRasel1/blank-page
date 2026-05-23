@@ -9,9 +9,9 @@ interface PageProps {
 export default async function PublishedPage({ params }: PageProps) {
   const { customUrl } = await params;
   
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  const serverUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+    throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables");
   }
   let initialData = null;
 
@@ -21,7 +21,7 @@ export default async function PublishedPage({ params }: PageProps) {
     const realIp = headersList.get('x-real-ip');
     const clientIp = forwardedFor ? forwardedFor.split(',')[0] : (realIp || '127.0.0.1');
 
-    const res = await fetch(`${serverUrl}/api/v1/pages/${customUrl}/view`, { 
+    const res = await fetch(`${serverUrl}/pages/${customUrl}/view`, { 
       cache: 'no-store',
       headers: {
         'x-forwarded-for': clientIp

@@ -6,12 +6,12 @@ export async function GET(
 ) {
   try {
     const { authorId } = await params;
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!serverUrl) {
-      throw new Error("NEXT_PUBLIC_SERVER_URL is not defined in environment variables");
+      throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables");
     }
 
-    const response = await fetch(`${serverUrl}/api/v1/pages/author/${authorId}/list`, {
+    const response = await fetch(`${serverUrl}/pages/author/${authorId}/list`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

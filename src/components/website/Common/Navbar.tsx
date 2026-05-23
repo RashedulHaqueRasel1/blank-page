@@ -256,7 +256,7 @@ export default function Navbar() {
 
     setIsPublishedLoading(true);
     try {
-      const res = await fetch(`/api/pages/author/${authorId}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/pages/author/${authorId}/list`);
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setPublishedPages(data.data);
@@ -331,7 +331,7 @@ export default function Navbar() {
       }
 
       const authorId = getOrCreateWriterId();
-      const res = await fetch(`/api/pages/author/fetch/${page.customUrl}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/pages/author/fetch/${page.customUrl}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ authorId })
