@@ -227,8 +227,9 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       setPageData(data.data);
       setContent(data.data.content || "");
       setIsLocked(false);
-    } catch (err: any) {
-      setAuthError(err.message);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Incorrect secret key";
+      setAuthError(errorMessage);
       setPasswordInput("");
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 600);
@@ -718,7 +719,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
           >
             <ArrowLeft size={16} strokeWidth={2} className="text-[var(--editor-text)]" />
           </Link>
-          <span className="text-[12px] font-extrabold tracking-wider uppercase opacity-40 text-[var(--editor-text)]">
+          <span className="text-[12px] font-extrabold tracking-wider uppercase opacity-40 text-[var(--editor-text)] hidden sm:inline">
             Blank Page Shared
           </span>
         </div>
@@ -737,7 +738,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
           {pageData.oneTimeView && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold">
               <Shield size={12} />
-              <span>One Time View</span>
+              <span className="hidden sm:inline">One Time View</span>
             </div>
           )}
 
@@ -747,7 +748,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
             : "bg-indigo-500/10 text-indigo-500"
             }`}>
             {pageData.isEditable ? <Edit size={12} /> : <Shield size={12} />}
-            <span>{pageData.isEditable ? "Editable" : "View Only"}</span>
+            <span className="hidden sm:inline">{pageData.isEditable ? "Editable" : "View Only"}</span>
           </div>
 
           {/* Auto-saving Status Tag */}
@@ -757,19 +758,19 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
               {isSaving ? (
                 <>
                   <Loader2 size={12} className="animate-spin" />
-                  <span>Saving...</span>
+                  <span className="hidden sm:inline">Saving...</span>
                 </>
               ) : (
                 <>
                   <Check size={12} />
-                  <span>Synced</span>
+                  <span className="hidden sm:inline">Synced</span>
                 </>
               )}
             </div>
           )}
 
           {/* Separator line */}
-          <div className="h-4 w-[1px] bg-[var(--border-color)] mx-1" />
+          <div className="hidden sm:block h-4 w-[1px] bg-[var(--border-color)] mx-1" />
 
           {/* Keyboard typewriter sound toggle */}
           {pageData.isEditable && (
@@ -788,7 +789,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
           {/* Word Count display */}
           <span className="text-[13px] font-medium tracking-tight opacity-70 select-none text-[var(--editor-text)]">
-            {wordCount} words
+            {wordCount}<span className="hidden sm:inline"> words</span><span className="inline sm:hidden">w</span>
           </span>
 
           {/* Settings/Themes/Fonts Dropdown */}

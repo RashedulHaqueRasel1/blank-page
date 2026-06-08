@@ -23,6 +23,16 @@ interface EditorDocument {
   publishedUrl?: string;
 }
 
+interface PublishedPage {
+  id: string;
+  customUrl: string;
+  title?: string | null;
+  isEditable: boolean;
+  expiresAt: string | null;
+  oneTimeView?: boolean;
+  pinned?: boolean;
+}
+
 const THEMES = [
   { id: "light", name: "Light Mode", color: "#ffffff" },
   { id: "dark", name: "Dark Mode", color: "#121212" },
@@ -167,7 +177,7 @@ export default function Navbar() {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string; isPublished?: boolean }>({ isOpen: false, id: "", currentTitle: "", isPublished: false });
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string }>({ isOpen: false, id: "" });
-  const [pubActionsModal, setPubActionsModal] = useState<{ isOpen: boolean; page: any | null; top: number; left: number }>({ isOpen: false, page: null, top: 0, left: 0 });
+  const [pubActionsModal, setPubActionsModal] = useState<{ isOpen: boolean; page: PublishedPage | null; top: number; left: number }>({ isOpen: false, page: null, top: 0, left: 0 });
   const [newTitleValue, setNewTitleValue] = useState("");
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "info" }>({ show: false, message: "", type: "success" });
 
@@ -232,7 +242,7 @@ export default function Navbar() {
 
   // Tab states: 'local' (drafts) or 'published' (pages in MongoDB)
   const [sidebarTab, setSidebarTab] = useState<"local" | "published">("local");
-  const [publishedPages, setPublishedPages] = useState<any[]>([]);
+  const [publishedPages, setPublishedPages] = useState<PublishedPage[]>([]);
   const [isPublishedLoading, setIsPublishedLoading] = useState(false);
 
   const getOrCreateWriterId = (): string => {
@@ -319,7 +329,7 @@ export default function Navbar() {
     }
   };
 
-  const handleImportPublishedPage = async (e: React.MouseEvent, page: any) => {
+  const handleImportPublishedPage = async (e: React.MouseEvent, page: PublishedPage) => {
     e.stopPropagation();
     try {
       const docs = await fetchAllDocs();
@@ -876,7 +886,7 @@ export default function Navbar() {
         </div>
       )}
 
-      <aside className="fixed left-0 top-0 z-[80] flex h-screen w-12 sm:w-[52px] flex-col items-center border-r border-[var(--border-color)] bg-[var(--editor-bg)] text-[var(--editor-text)] shadow-[10px_0_30px_rgba(0,0,0,0.08)] transition-colors duration-300">
+      <aside className="fixed left-0 top-0 z-[80] hidden md:flex h-screen w-[52px] flex-col items-center border-r border-[var(--border-color)] bg-[var(--editor-bg)] text-[var(--editor-text)] shadow-[10px_0_30px_rgba(0,0,0,0.08)] transition-colors duration-300">
         <div className="flex w-full flex-col items-center gap-3 pt-3">
           <button
             onClick={() => { setShowSidebar(true); refreshDocs(true); }}
@@ -987,32 +997,36 @@ export default function Navbar() {
       )}
 
       {/* Published Page Actions Dropdown (fixed-position to avoid sidebar overflow clipping) */}
-      {pubActionsModal.isOpen && pubActionsModal.page && (
-        <>
-          <div className="fixed inset-0 z-[150]" onClick={() => setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 })} />
-          <div
-            className="fixed w-44 rounded-xl shadow-2xl py-1.5 z-[160] animate-in fade-in zoom-in slide-in-from-top-1 duration-150"
-            style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)", top: pubActionsModal.top, left: pubActionsModal.left }}
-          >
-            <button onClick={() => { handleTogglePinPublished({} as any, pubActionsModal.page.customUrl, !!pubActionsModal.page.pinned); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
-              {pubActionsModal.page.pinned ? <><PinOff size={14} className="opacity-60" /> Unpin</> : <><Pin size={14} className="opacity-60" /> Pin to top</>}
-            </button>
-            <button onClick={() => { setRenameModal({ isOpen: true, id: pubActionsModal.page.customUrl, currentTitle: pubActionsModal.page.title || "Untitled", isPublished: true }); setNewTitleValue(pubActionsModal.page.title || "Untitled"); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
-              <Edit3 size={14} className="opacity-60" /> Rename
-            </button>
-            <button onClick={(e) => { handleImportPublishedPage(e, pubActionsModal.page); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80 text-indigo-500">
-              <FileText size={14} className="opacity-60" /> Import / Edit
-            </button>
-            <a href={`/${pubActionsModal.page.customUrl}`} target="_blank" rel="noopener noreferrer" onClick={() => setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 })} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
-              <ExternalLink size={14} className="opacity-60" /> View Live Page
-            </a>
-            <div className="h-[1px] my-1" style={{ background: "var(--border-color)" }} />
-            <button onClick={() => { openDeleteModal(pubActionsModal.page.customUrl); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer text-red-500 hover:opacity-80">
-              <Trash2 size={14} className="opacity-60" /> Delete
-            </button>
-          </div>
-        </>
-      )}
+      {(() => {
+        const page = pubActionsModal.page;
+        if (!pubActionsModal.isOpen || !page) return null;
+        return (
+          <>
+            <div className="fixed inset-0 z-[150]" onClick={() => setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 })} />
+            <div
+              className="fixed w-44 rounded-xl shadow-2xl py-1.5 z-[160] animate-in fade-in zoom-in slide-in-from-top-1 duration-150"
+              style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)", top: pubActionsModal.top, left: pubActionsModal.left }}
+            >
+              <button onClick={(e) => { handleTogglePinPublished(e, page.customUrl, !!page.pinned); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
+                {page.pinned ? <><PinOff size={14} className="opacity-60" /> Unpin</> : <><Pin size={14} className="opacity-60" /> Pin to top</>}
+              </button>
+              <button onClick={() => { setRenameModal({ isOpen: true, id: page.customUrl, currentTitle: page.title || "Untitled", isPublished: true }); setNewTitleValue(page.title || "Untitled"); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
+                <Edit3 size={14} className="opacity-60" /> Rename
+              </button>
+              <button onClick={(e) => { handleImportPublishedPage(e, page); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80 text-indigo-500">
+                <FileText size={14} className="opacity-60" /> Import / Edit
+              </button>
+              <a href={`/${page.customUrl}`} target="_blank" rel="noopener noreferrer" onClick={() => setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 })} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer hover:opacity-80" style={{ color: "var(--editor-text)" }}>
+                <ExternalLink size={14} className="opacity-60" /> View Live Page
+              </a>
+              <div className="h-[1px] my-1" style={{ background: "var(--border-color)" }} />
+              <button onClick={() => { openDeleteModal(page.customUrl); setPubActionsModal({ isOpen: false, page: null, top: 0, left: 0 }); }} className="w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors cursor-pointer text-red-500 hover:opacity-80">
+                <Trash2 size={14} className="opacity-60" /> Delete
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       <div ref={sidebarRef} className={`fixed top-0 left-0 h-full w-[280px] bg-[var(--editor-bg)] border-r border-[var(--border-color)] z-[100] transform transition-transform duration-300 ease-out shadow-2xl ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full p-6">
@@ -1202,13 +1216,26 @@ export default function Navbar() {
               )}
             </div>
           )}
+          {/* Profile/Backup section at the bottom of the sidebar */}
+          <div className="mt-auto pt-4 border-t border-[var(--border-color)]">
+            <button
+              onClick={() => { setProfileStep("email"); setProfileOtp(""); setShowProfileModal(true); }}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-[13px] font-semibold transition-all hover:bg-black/[0.03] dark:hover:bg-white/[0.03] cursor-pointer text-[var(--editor-text)]"
+            >
+              <User size={16} strokeWidth={1.7} className="opacity-60" />
+              <span>Profile & Backup</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <nav className="w-full h-14 bg-[var(--navbar-bg)] backdrop-blur-md md:bg-transparent md:backdrop-blur-none flex items-center justify-between pl-16 pr-4 sm:pl-[70px] sm:pr-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
-        <div className="flex items-center gap-5 md:pointer-events-auto">
-          <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200">
+      <nav className="w-full h-14 bg-[var(--navbar-bg)] backdrop-blur-md md:bg-transparent md:backdrop-blur-none flex items-center justify-between px-4 md:pl-20 md:pr-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
+        <div className="flex items-center gap-4 md:pointer-events-auto">
+          <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="flex md:hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer" title="Menu">
             <AlignLeft size={22} strokeWidth={1.5} />
+          </button>
+          <button onClick={() => handleCreateNewDoc()} className="flex md:hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer items-center justify-center" title="New document">
+            <SquarePen size={19} strokeWidth={1.5} />
           </button>
         </div>
 
@@ -1222,7 +1249,7 @@ export default function Navbar() {
               >
                 {soundEnabled ? <Volume2 size={18} strokeWidth={1.5} /> : <VolumeX size={18} strokeWidth={1.5} />}
               </button>
-              <span className="text-[13px] font-medium tracking-tight opacity-70 select-none">{wordCount} words</span>
+              <span className="text-[13px] font-medium tracking-tight opacity-70 select-none">{wordCount}<span className="hidden sm:inline"> words</span><span className="inline sm:hidden">w</span></span>
             </div>
           )}
           <div className="flex items-center gap-5 relative">

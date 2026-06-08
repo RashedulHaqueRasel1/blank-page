@@ -363,7 +363,7 @@ export default function Banner() {
       />
 
       {/* Editor Surface */}
-      <div className="w-full max-w-6xl pl-[76px] pr-6 py-20 md:px-20">
+      <div className="w-full max-w-6xl px-6 py-20 md:px-20">
         <div
           ref={editorRef}
           contentEditable

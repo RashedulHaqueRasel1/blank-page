@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "../globals.css";
-import Navbar from "@/components/website/Common/Navbar";
 
 export const metadata: Metadata = {
   title: "Blank Page",
@@ -15,7 +14,6 @@ export default function RootLayout({
 }>) {
   return (
     <>
-      <Navbar />
       {children}
     </>
   );
