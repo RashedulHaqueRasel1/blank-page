@@ -52,19 +52,25 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       <div className="flex items-center gap-2 border-r border-[var(--border-color)] pr-3 mr-1">
         {[
           { color: "inherit", label: "Default" },
+          { color: "#ffffff", label: "White" },
+          { color: "#000000", label: "Black" },
           { color: "#ef4444", label: "Red" },
           { color: "#3b82f6", label: "Blue" },
           { color: "#10b981", label: "Green" },
           { color: "#f59e0b", label: "Amber" },
           { color: "#8b5cf6", label: "Purple" },
-        ].map((item) => (
+        ].filter(item => {
+           const isDark = typeof document !== 'undefined' && (document.documentElement.classList.contains('dark') || document.body.classList.contains('dark') || document.documentElement.getAttribute('data-theme') === 'dark');
+           if (isDark && item.color === '#000000') return false; // don't show black option in dark themes
+           if (!isDark && item.color === '#ffffff') return false; // don't show white option in light themes
+           return true;
+        }).map((item) => (
           <button
             key={item.color}
             onClick={() => onApplyColor(item.color)}
             className="w-5 h-5 rounded-full border border-[var(--border-color)] hover:scale-125 transition-transform cursor-pointer"
             style={{
-              backgroundColor:
-                item.color === "inherit" ? "transparent" : item.color,
+              backgroundColor: item.color === "inherit" ? "transparent" : item.color,
             }}
             title={item.label}
           />

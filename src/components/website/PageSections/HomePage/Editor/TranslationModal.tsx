@@ -61,7 +61,7 @@ const TranslationModal: React.FC<TranslationModalProps> = ({
             <X size={14} />
           </button>
         </div>
-        <div className="relative mb-1 min-h-[50px] border border-[var(--border-color)] rounded-xl p-2">
+        <div className="relative mb-1 min-h-[50px] max-h-[40vh] overflow-y-auto thin-scrollbar border border-[var(--border-color)] rounded-xl p-2 pr-3">
           {isTranslating && !translationResult ? (
             <div className="flex flex-col items-center justify-center py-4 gap-3 opacity-50">
               <Loader2 className="animate-spin text-[var(--editor-text)]" size={20} />

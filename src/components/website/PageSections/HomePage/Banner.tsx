@@ -400,6 +400,11 @@ export default function Banner() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
+        .thin-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .thin-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        .thin-scrollbar { scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
+
         [contenteditable]:empty:before {
           content: attr(data-placeholder);
           color: var(--editor-text);
