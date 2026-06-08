@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import FloatingToolbar from "./Editor/FloatingToolbar";
 import TranslationModal from "./Editor/TranslationModal";
+import FirstVisitCelebration from "@/components/website/Common/FirstVisitCelebration";
 
 const DB_NAME = "EditorDB";
 const STORE_NAME = "Documents";
@@ -344,6 +345,9 @@ export default function Banner() {
         if (e.target === e.currentTarget) editorRef.current?.focus();
       }}
     >
+      {/* First Visit Celebration */}
+      <FirstVisitCelebration />
+
       {/* Floating Toolbar */}
       <FloatingToolbar
         show={toolbarPos.show}

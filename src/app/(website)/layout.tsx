@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "../globals.css";
 
 export const metadata: Metadata = {
-  title: "Blank Page",
+  title: "My Blank Page",
   description:
-    "Blank page for writing",
+    "My Blank page for writing",
 };
 
 export default function RootLayout({

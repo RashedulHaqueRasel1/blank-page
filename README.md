@@ -1,6 +1,6 @@
-# Blank Page — Minimalist AI-Powered Writing Editor & Publishing Platform
+# My Blank Page — Minimalist AI-Powered Writing Editor & Publishing Platform
 
-**Blank Page** is a distraction-free, privacy-first writing application built for creators who want to write, publish, and share their work instantly — with zero logins required. It combines a local-first offline editor with a powerful real-time publishing engine, AI translation, optional password protection, and self-destructing one-time view pages.
+**My Blank Page** is a distraction-free, privacy-first writing application built for creators who want to write, publish, and share their work instantly — with zero logins required. It combines a local-first offline editor with a powerful real-time publishing engine, AI translation, optional password protection, and self-destructing one-time view pages.
 
 ---
 
