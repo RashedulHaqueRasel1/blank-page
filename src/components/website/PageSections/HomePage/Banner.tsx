@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { io, Socket } from "socket.io-client";
 import FloatingToolbar from "./Editor/FloatingToolbar";
 import TranslationModal from "./Editor/TranslationModal";
 import FirstVisitCelebration from "@/components/website/Common/FirstVisitCelebration";
@@ -22,6 +23,7 @@ interface EditorDocument {
   title: string;
   lastModified: number;
   wasRenamed?: boolean;
+  publishedUrl?: string;
 }
 
 const openDB = (): Promise<IDBDatabase> => {
@@ -64,6 +66,8 @@ export default function Banner() {
   const editorRef = useRef<HTMLDivElement>(null);
   const audioPool = useRef<Record<string, HTMLAudioElement>>({});
   const isInitialLoad = useRef(true);
+  const socketRef = useRef<Socket | null>(null);
+  const lastLiveSyncRef = useRef<Record<string, string>>({});
 
   // AI Translation State
   const [isTranslating, setIsTranslating] = useState(false);
@@ -89,6 +93,43 @@ export default function Banner() {
     return firstLine.slice(0, 30) + (firstLine.length > 30 ? "..." : "");
   };
 
+  const getOrCreateWriterId = (): string => {
+    if (typeof window === "undefined") return "";
+    let id = localStorage.getItem("writer-id");
+    if (!id) {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let randomStr = "";
+      for (let i = 0; i < 6; i++) {
+        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      id = `user-${randomStr}`;
+      localStorage.setItem("writer-id", id);
+    }
+    return id;
+  };
+
+  const syncLiveDocument = async (doc: EditorDocument, html: string, title: string) => {
+    if (!doc.publishedUrl) return;
+    if (lastLiveSyncRef.current[doc.publishedUrl] === html) return;
+
+    const authorId = getOrCreateWriterId();
+    if (!authorId) return;
+
+    const response = await fetch(`/api/pages/${doc.publishedUrl}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authorId, content: html, title }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to auto update live page");
+    }
+
+    lastLiveSyncRef.current[doc.publishedUrl] = html;
+    socketRef.current?.emit("edit-page", { customUrl: doc.publishedUrl, content: html });
+    window.dispatchEvent(new CustomEvent('published-page-auto-synced', { detail: doc.publishedUrl }));
+  };
+
   const saveDocument = async (html: string) => {
     if (!activeId) return;
     try {
@@ -98,6 +139,7 @@ export default function Banner() {
       const currentDoc = await getDocument(activeId) as EditorDocument | null;
       const wasRenamed = currentDoc?.wasRenamed || false;
       const existingTitle = currentDoc?.title || "Untitled";
+      const nextTitle = wasRenamed ? existingTitle : generateTitle(html);
 
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
@@ -105,10 +147,14 @@ export default function Banner() {
         ...currentDoc,
         id: activeId,
         content: html,
-        title: wasRenamed ? existingTitle : generateTitle(html),
+        title: nextTitle,
         lastModified: Date.now()
       });
       window.dispatchEvent(new CustomEvent('editor-content-updated'));
+
+      if (currentDoc?.publishedUrl) {
+        await syncLiveDocument(currentDoc, html, nextTitle);
+      }
     } catch (err) {
       console.error("Save Error:", err);
     }
@@ -215,6 +261,19 @@ export default function Banner() {
     };
     window.addEventListener("editor-sound-update", handleSoundUpdate);
 
+    const serverUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (serverUrl) {
+      let socketUrl = serverUrl;
+      try {
+        if (serverUrl.startsWith("http://") || serverUrl.startsWith("https://")) {
+          socketUrl = new URL(serverUrl).origin;
+        }
+      } catch (e) {
+        console.error("Invalid serverUrl for socket:", e);
+      }
+      socketRef.current = io(socketUrl);
+    }
+
     const savedId = localStorage.getItem("active_doc_id");
     if (savedId) {
       loadDocument(savedId);
@@ -222,6 +281,7 @@ export default function Banner() {
 
     return () => {
       channel.close();
+      socketRef.current?.disconnect();
       window.removeEventListener("font-style-update", handleFontStyle);
       window.removeEventListener("editor-sound-update", handleSoundUpdate);
     };

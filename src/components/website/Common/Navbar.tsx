@@ -5,7 +5,7 @@ import {
   AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
   Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe, ExternalLink,
-  PanelLeft, SquarePen, Library, User, ShieldCheck
+  PanelLeft, SquarePen, Library, User, ShieldCheck, LogOut
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -140,6 +140,49 @@ const removeDocFromDB = async (id: string): Promise<void> => {
   });
 };
 
+const restoreDocsToDB = async (remoteDocs: EditorDocument[]): Promise<{ restoredCount: number; activeId: string | null }> => {
+  if (remoteDocs.length === 0) return { restoredCount: 0, activeId: null };
+
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    let restoredCount = 0;
+    let activeId: string | null = null;
+    let newestRestoredAt = 0;
+
+    const sanitizeDoc = (doc: EditorDocument): EditorDocument => ({
+      id: String(doc.id),
+      title: String(doc.title || "Untitled"),
+      content: String(doc.content || ""),
+      lastModified: Number(doc.lastModified || Date.now()),
+      pinned: Boolean(doc.pinned),
+      wasRenamed: Boolean(doc.wasRenamed),
+      ...(doc.publishedUrl ? { publishedUrl: String(doc.publishedUrl) } : {}),
+    });
+
+    remoteDocs.forEach((remoteDoc) => {
+      if (!remoteDoc?.id) return;
+      const doc = sanitizeDoc(remoteDoc);
+      const getReq = store.get(doc.id);
+      getReq.onsuccess = () => {
+        const localDoc = getReq.result as EditorDocument | undefined;
+        if (!localDoc || Number(doc.lastModified || 0) >= Number(localDoc.lastModified || 0)) {
+          store.put(doc);
+          restoredCount += 1;
+          if (doc.lastModified > newestRestoredAt) {
+            activeId = doc.id;
+            newestRestoredAt = doc.lastModified;
+          }
+        }
+      };
+    });
+
+    tx.oncomplete = () => resolve({ restoredCount, activeId });
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
 const formatTime = (timestamp: number) => {
   const diff = Date.now() - timestamp;
   const mins = Math.floor(diff / 60000);
@@ -170,6 +213,13 @@ export default function Navbar() {
   const [profileStep, setProfileStep] = useState<"email" | "otp" | "pending">("email");
   const [profileEmail, setProfileEmail] = useState("");
   const [profileOtp, setProfileOtp] = useState("");
+  const [profileError, setProfileError] = useState("");
+  const [profileDevCode, setProfileDevCode] = useState("");
+  const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
+  const [backupEmail, setBackupEmail] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("backup-email") || "" : ""));
+  const [backupEnabled, setBackupEnabled] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("backup-enabled") === "true" : false));
+  const [isBackupSyncing, setIsBackupSyncing] = useState(false);
+  const [lastBackupSyncAt, setLastBackupSyncAt] = useState<string | null>(() => (typeof window !== "undefined" ? localStorage.getItem("backup-last-sync") : null));
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
@@ -238,6 +288,73 @@ export default function Navbar() {
     const pastedOtp = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     setProfileOtp(pastedOtp.padEnd(6, " "));
     otpInputRefs.current[Math.min(pastedOtp.length, 5)]?.focus();
+  };
+
+  const handleSubmitProfileEmail = async () => {
+    if (!isProfileEmailValid || isProfileSubmitting) return;
+
+    setIsProfileSubmitting(true);
+    setProfileError("");
+    try {
+      const res = await fetch("/api/subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: profileEmail.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to send verification code");
+      }
+
+      setProfileEmail(data.data?.email || profileEmail.trim());
+      setProfileDevCode(data.data?.devVerificationCode || "");
+      setProfileOtp("");
+      setProfileStep("otp");
+      showToast(data.data?.devVerificationCode ? "Dev verification code generated" : "Verification code sent to your email");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send verification code";
+      setProfileError(message);
+      showToast(message, "info");
+    } finally {
+      setIsProfileSubmitting(false);
+    }
+  };
+
+  const handleVerifyProfileEmail = async () => {
+    if (!isProfileOtpValid || isProfileSubmitting) return;
+
+    setIsProfileSubmitting(true);
+    setProfileError("");
+    try {
+      const res = await fetch("/api/subscribers/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: profileEmail.trim(), code: profileOtp.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to verify email");
+      }
+
+      localStorage.setItem("backup-email", data.data?.email || profileEmail.trim());
+      setBackupEmail(data.data?.email || profileEmail.trim());
+      localStorage.setItem("backup-email-verified", "true");
+      if (data.data?.backupToken) {
+        localStorage.setItem("backup-token", data.data.backupToken);
+      }
+      setProfileDevCode("");
+      setProfileStep("pending");
+      await restoreBackupFromCloud(data.data?.email || profileEmail.trim(), data.data?.backupToken);
+      showToast("Email verified successfully");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to verify email";
+      setProfileError(message);
+      showToast(message, "info");
+    } finally {
+      setIsProfileSubmitting(false);
+    }
   };
 
   // Tab states: 'local' (drafts) or 'published' (pages in MongoDB)
@@ -334,14 +451,9 @@ export default function Navbar() {
     try {
       const docs = await fetchAllDocs();
       const existingDoc = docs.find(d => d.publishedUrl === page.customUrl);
-      if (existingDoc) {
-        handleSwitchDoc(existingDoc.id);
-        showToast("Switched to existing local draft");
-        return;
-      }
 
       const authorId = getOrCreateWriterId();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/pages/author/fetch/${page.customUrl}`, {
+      const res = await fetch(`/api/pages/author/fetch/${page.customUrl}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ authorId })
@@ -349,6 +461,18 @@ export default function Navbar() {
       const data = await res.json();
       if (!data.success || !data.data) {
         showToast("Failed to fetch page content");
+        return;
+      }
+
+      if (existingDoc) {
+        await updateDocInDB(existingDoc.id, {
+          title: page.title || existingDoc.title || "Untitled Published Page",
+          content: data.data.content || "",
+          wasRenamed: true,
+          publishedUrl: page.customUrl,
+        });
+        handleSwitchDoc(existingDoc.id);
+        showToast("Opened latest published page for editing");
         return;
       }
 
@@ -371,7 +495,7 @@ export default function Navbar() {
       
       tx.oncomplete = () => {
         handleSwitchDoc(id);
-        showToast("Imported successfully! Edits can now be updated live.");
+        showToast("Opened published page for editing");
       };
     } catch (err) {
       console.error(err);
@@ -464,6 +588,7 @@ export default function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const syncChannel = useRef<BroadcastChannel | null>(null);
+  const hasRestoredBackupRef = useRef(false);
 
   useEffect(() => {
     syncChannel.current = new BroadcastChannel('editor-sync');
@@ -474,6 +599,243 @@ export default function Navbar() {
     setToast({ show: true, message, type });
     setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
   };
+
+  const openProfileBackupModal = () => {
+    const savedEmail = localStorage.getItem("backup-email") || backupEmail;
+    const isVerified = localStorage.getItem("backup-email-verified") === "true";
+    setProfileEmail(savedEmail);
+    setProfileStep(isVerified && savedEmail ? "pending" : "email");
+    setProfileOtp("");
+    setProfileError("");
+    setProfileDevCode("");
+    setIsProfileSubmitting(false);
+    setShowProfileModal(true);
+  };
+
+  const restoreBackupFromCloud = async (emailOverride?: string, tokenOverride?: string | null, showResultToast = true) => {
+    if (typeof window === "undefined") return false;
+
+    const email = emailOverride || localStorage.getItem("backup-email") || "";
+    let backupToken = tokenOverride || localStorage.getItem("backup-token");
+    if (!email) return false;
+
+    try {
+      if (!backupToken) {
+        const tokenRes = await fetch("/api/subscribers/backup-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const tokenData = await tokenRes.json();
+
+        if (!tokenRes.ok || !tokenData.success || !tokenData.data?.backupToken) {
+          throw new Error(tokenData.message || "Could not prepare backup access");
+        }
+
+        backupToken = String(tokenData.data.backupToken);
+        localStorage.setItem("backup-token", backupToken);
+      }
+
+      const res = await fetch(`/api/backups/status?email=${encodeURIComponent(email)}&backupToken=${encodeURIComponent(backupToken)}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Could not load backup");
+      }
+
+      const remoteDocs = Array.isArray(data.data?.documents) ? data.data.documents as EditorDocument[] : [];
+      if (data.data?.email) {
+        localStorage.setItem("backup-email", data.data.email);
+        setBackupEmail(data.data.email);
+      }
+      if (data.data?.lastSyncedAt) {
+        localStorage.setItem("backup-last-sync", data.data.lastSyncedAt);
+        setLastBackupSyncAt(data.data.lastSyncedAt);
+      }
+      if (data.data?.isEnabled) {
+        localStorage.setItem("backup-enabled", "true");
+        setBackupEnabled(true);
+      }
+
+      const { restoredCount, activeId } = await restoreDocsToDB(remoteDocs);
+      await refreshDocs(true);
+      if (activeId) {
+        localStorage.setItem("active_doc_id", activeId);
+        setActiveDocId(activeId);
+        syncChannel.current?.postMessage({ type: 'SWITCH_DOC', id: activeId });
+      }
+      if (showResultToast && restoredCount > 0) {
+        showToast(`Restored ${restoredCount} backed up ${restoredCount === 1 ? "draft" : "drafts"}`);
+      }
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not load backup";
+      if (showResultToast) showToast(message, "info");
+      return false;
+    }
+  };
+
+  const syncBackupToCloud = async (showSuccessToast = false, forceEnable = false) => {
+    if (typeof window === "undefined" || isBackupSyncing) return false;
+    if (!forceEnable && localStorage.getItem("backup-enabled") !== "true") return false;
+
+    const email = localStorage.getItem("backup-email");
+    let backupToken = localStorage.getItem("backup-token");
+    const isVerified = localStorage.getItem("backup-email-verified") === "true";
+
+    if (!email || !isVerified) {
+      showToast("Verify your email before enabling backup", "info");
+      return false;
+    }
+
+    setIsBackupSyncing(true);
+    try {
+      if (!backupToken) {
+        const tokenRes = await fetch("/api/subscribers/backup-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const tokenData = await tokenRes.json();
+
+        if (!tokenRes.ok || !tokenData.success || !tokenData.data?.backupToken) {
+          throw new Error(tokenData.message || "Could not prepare backup access");
+        }
+
+        backupToken = String(tokenData.data.backupToken);
+        localStorage.setItem("backup-token", backupToken);
+      }
+
+      const docs = await fetchAllDocs();
+      const res = await fetch("/api/backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          backupToken,
+          isEnabled: true,
+          documents: docs,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Backup sync failed");
+      }
+
+      const syncedAt = data.data?.lastSyncedAt || new Date().toISOString();
+      if (data.data?.email) {
+        localStorage.setItem("backup-email", data.data.email);
+        setBackupEmail(data.data.email);
+      }
+      localStorage.setItem("backup-last-sync", syncedAt);
+      setLastBackupSyncAt(syncedAt);
+      if (showSuccessToast) showToast("Backup synced to MongoDB");
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Backup sync failed";
+      showToast(message, "info");
+      return false;
+    } finally {
+      setIsBackupSyncing(false);
+    }
+  };
+
+  const disableCloudBackup = async () => {
+    if (typeof window === "undefined" || isBackupSyncing) return;
+
+    const email = localStorage.getItem("backup-email");
+    const backupToken = localStorage.getItem("backup-token");
+    const isVerified = localStorage.getItem("backup-email-verified") === "true";
+
+    if (!email || !backupToken || !isVerified) return;
+
+    setIsBackupSyncing(true);
+    try {
+      await fetch("/api/backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          backupToken,
+          isEnabled: false,
+          documents: [],
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to disable cloud backup:", err);
+    } finally {
+      setIsBackupSyncing(false);
+    }
+  };
+
+  const handleLogoutBackupAccount = () => {
+    localStorage.removeItem("backup-email");
+    localStorage.removeItem("backup-token");
+    localStorage.removeItem("backup-email-verified");
+    localStorage.removeItem("backup-last-sync");
+    localStorage.setItem("backup-enabled", "false");
+
+    setBackupEmail("");
+    setBackupEnabled(false);
+    setLastBackupSyncAt(null);
+    setProfileEmail("");
+    setProfileOtp("");
+    setProfileError("");
+    setProfileDevCode("");
+    setProfileStep("email");
+    showToast("Logged out from backup account", "info");
+  };
+
+  const handleToggleBackup = async () => {
+    if (backupEnabled) {
+      localStorage.setItem("backup-enabled", "false");
+      setBackupEnabled(false);
+      disableCloudBackup();
+      showToast("Backup turned off", "info");
+      return;
+    }
+
+    localStorage.setItem("backup-enabled", "true");
+    const synced = await syncBackupToCloud(true, true);
+    if (synced) {
+      setBackupEnabled(true);
+    } else {
+      localStorage.setItem("backup-enabled", "false");
+    }
+  };
+
+  useEffect(() => {
+    if (hasRestoredBackupRef.current) return;
+    hasRestoredBackupRef.current = true;
+
+    const email = localStorage.getItem("backup-email");
+    const token = localStorage.getItem("backup-token");
+    const isVerified = localStorage.getItem("backup-email-verified") === "true";
+    const isLocalBackupOn = localStorage.getItem("backup-enabled") === "true";
+    if (email && token && isVerified && isLocalBackupOn) {
+      setBackupEmail(email);
+      restoreBackupFromCloud(email, token, false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!backupEnabled) return;
+
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const queueBackupSync = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        syncBackupToCloud(false);
+      }, 1500);
+    };
+
+    window.addEventListener("editor-content-updated", queueBackupSync);
+    return () => {
+      if (timeout) clearTimeout(timeout);
+      window.removeEventListener("editor-content-updated", queueBackupSync);
+    };
+  }, [backupEnabled, isBackupSyncing]);
 
   const refreshDocs = async (keepSidebarOpen = false) => {
     const docs = await fetchAllDocs();
@@ -492,6 +854,7 @@ export default function Navbar() {
     try {
       const newDoc = await createDocInDB(title);
       handleSwitchDoc(newDoc.id);
+      if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
     } catch (err) { console.error(err); }
   };
 
@@ -501,6 +864,7 @@ export default function Navbar() {
       if (activeDocId === id) localStorage.removeItem("active_doc_id");
       setActiveMenuId(null);
       refreshDocs(true);
+      if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
       showToast("Document deleted", "info");
     } catch (err) { console.error(err); }
   };
@@ -510,6 +874,7 @@ export default function Navbar() {
       await updateDocInDB(id, { pinned: !currentPinned });
       setActiveMenuId(null);
       refreshDocs(true);
+      if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
       showToast(currentPinned ? "Document unpinned" : "Document pinned");
     } catch (err) { console.error(err); }
   };
@@ -541,6 +906,7 @@ export default function Navbar() {
           await updateDocInDB(renameModal.id, { title: newTitleValue.trim(), wasRenamed: true });
           setRenameModal({ isOpen: false, id: "", currentTitle: "" });
           refreshDocs(true);
+          if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
           showToast("Title updated");
         }
       } catch (err) { console.error(err); }
@@ -753,9 +1119,13 @@ export default function Navbar() {
                   type="email"
                   autoFocus
                   value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
+                  onChange={(e) => {
+                    setProfileEmail(e.target.value);
+                    setProfileError("");
+                    setProfileDevCode("");
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && isProfileEmailValid) setProfileStep("otp");
+                    if (e.key === "Enter" && isProfileEmailValid) handleSubmitProfileEmail();
                   }}
                   placeholder="you@example.com"
                   className="mt-2 w-full rounded-xl border px-4 py-3 text-[14px] outline-none transition-colors focus:border-current"
@@ -765,14 +1135,17 @@ export default function Navbar() {
                     color: "var(--editor-text)",
                   }}
                 />
+                {profileError && (
+                  <p className="mt-2 text-[12px] font-semibold text-red-500">{profileError}</p>
+                )}
                 <button
                   type="button"
-                  disabled={!isProfileEmailValid}
-                  onClick={() => setProfileStep("otp")}
+                  disabled={!isProfileEmailValid || isProfileSubmitting}
+                  onClick={handleSubmitProfileEmail}
                   className="mt-4 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
                   style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
                 >
-                  Continue
+                  {isProfileSubmitting ? "Sending code..." : "Continue"}
                 </button>
               </>
             ) : profileStep === "otp" ? (
@@ -794,6 +1167,18 @@ export default function Navbar() {
                     </p>
                   </div>
                 </div>
+                {profileDevCode && (
+                  <div
+                    className="mt-5 rounded-xl border px-4 py-3 text-[12px] leading-5"
+                    style={{
+                      background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    SMTP is not configured right now. Use test otp.{" "}
+                    <span className="font-mono text-[14px] font-bold tracking-[0.2em]">{profileDevCode}</span>
+                  </div>
+                )}
                 <label className="mt-6 block text-[12px] font-semibold opacity-60" htmlFor="profile-otp">
                   Your OTP
                 </label>
@@ -809,7 +1194,10 @@ export default function Navbar() {
                       autoFocus={index === 0}
                       maxLength={1}
                       value={profileOtp[index] === " " ? "" : profileOtp[index] || ""}
-                      onChange={(e) => updateOtpDigit(index, e.target.value)}
+                      onChange={(e) => {
+                        setProfileError("");
+                        updateOtpDigit(index, e.target.value);
+                      }}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
                       onPaste={handleOtpPaste}
                       onFocus={(e) => e.currentTarget.select()}
@@ -823,25 +1211,34 @@ export default function Navbar() {
                     />
                   ))}
                 </div>
+                {profileError && (
+                  <p className="mt-2 text-[12px] font-semibold text-red-500">{profileError}</p>
+                )}
                 <button
                   type="button"
-                  disabled={!isProfileOtpValid}
-                  onClick={() => setProfileStep("pending")}
+                  disabled={!isProfileOtpValid || isProfileSubmitting}
+                  onClick={handleVerifyProfileEmail}
                   className="mt-4 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
                   style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
                 >
-                  Verify and continue
+                  {isProfileSubmitting ? "Verifying..." : "Verify and continue"}
                 </button>
                 <div className="mt-4 flex items-center justify-between text-[12px]">
                   <button
                     type="button"
-                    onClick={() => setProfileStep("email")}
+                    onClick={() => {
+                      setProfileError("");
+                      setProfileDevCode("");
+                      setProfileStep("email");
+                    }}
                     className="font-semibold opacity-55 transition-opacity hover:opacity-100 cursor-pointer"
                   >
                     Change email
                   </button>
                   <button
                     type="button"
+                    disabled={isProfileSubmitting}
+                    onClick={handleSubmitProfileEmail}
                     className="font-semibold opacity-55 transition-opacity hover:opacity-100 cursor-pointer"
                   >
                     Resend code
@@ -864,18 +1261,63 @@ export default function Navbar() {
                     className="mb-3 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide opacity-70"
                     style={{ borderColor: "var(--border-color)" }}
                   >
-                    Early access
+                    Verified email
                   </span>
-                  {/* <h2 className="text-[21px] font-semibold tracking-tight">Backup access requested</h2> */}
-                   <h2 className="text-[21px] font-semibold tracking-tight">Coming soon ...</h2>
+                  {(backupEmail || profileEmail) && (
+                    <span className="mb-3 max-w-[300px] truncate text-[12px] font-semibold opacity-55">
+                      {backupEmail || profileEmail}
+                    </span>
+                  )}
+                  <h2 className="text-[21px] font-semibold tracking-tight">Cloud backup</h2>
                   <p className="mt-2 max-w-[300px] text-[13px] leading-6 opacity-60">
-                    Secure backup for drafts and published pages is currently in development. We will email you when it is ready.
+                    Turn backup on to save all your local drafts and published draft links in MongoDB.
                   </p>
                 </div>
                 <button
                   type="button"
+                  disabled={isBackupSyncing}
+                  onClick={handleToggleBackup}
+                  className="mt-6 flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                  }}
+                >
+                  <span className="flex flex-col">
+                    <span className="text-[13px] font-bold">{backupEnabled ? "Backup is on" : "Backup is off"}</span>
+                    <span className="mt-0.5 text-[11px] opacity-50">
+                      {isBackupSyncing
+                        ? "Syncing..."
+                        : lastBackupSyncAt
+                          ? `Last synced ${new Date(lastBackupSyncAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                          : "Not synced yet"}
+                    </span>
+                  </span>
+                  <span
+                    className={`relative h-6 w-11 rounded-full transition-colors ${backupEnabled ? "bg-green-500" : "bg-black/20 dark:bg-white/20"}`}
+                  >
+                    <span
+                      className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${backupEnabled ? "translate-x-6" : "translate-x-1"}`}
+                    />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogoutBackupAccount}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-[14px] font-bold transition-all active:scale-[0.98] cursor-pointer"
+                  style={{
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                    background: "transparent",
+                  }}
+                >
+                  <LogOut size={16} strokeWidth={1.8} />
+                  Logout
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowProfileModal(false)}
-                  className="mt-6 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] cursor-pointer"
+                  className="mt-3 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] cursor-pointer"
                   style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
                 >
                   Done
@@ -932,7 +1374,7 @@ export default function Navbar() {
           </button>
         </div>
         <button
-          onClick={() => { setProfileStep("email"); setProfileOtp(""); setShowProfileModal(true); }}
+          onClick={openProfileBackupModal}
           className="group relative mt-auto mb-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:opacity-90 cursor-pointer"
           style={{
             background: "color-mix(in srgb, var(--editor-text) 8%, transparent)",
@@ -1219,11 +1661,20 @@ export default function Navbar() {
           {/* Profile/Backup section at the bottom of the sidebar */}
           <div className="mt-auto pt-4 border-t border-[var(--border-color)]">
             <button
-              onClick={() => { setProfileStep("email"); setProfileOtp(""); setShowProfileModal(true); }}
+              onClick={openProfileBackupModal}
               className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-[13px] font-semibold transition-all hover:bg-black/[0.03] dark:hover:bg-white/[0.03] cursor-pointer text-[var(--editor-text)]"
             >
-              <User size={16} strokeWidth={1.7} className="opacity-60" />
-              <span>Profile & Backup</span>
+              {backupEnabled ? (
+                <ShieldCheck size={16} strokeWidth={1.7} className="shrink-0 text-green-500" />
+              ) : (
+                <User size={16} strokeWidth={1.7} className="shrink-0 opacity-60" />
+              )}
+              <span className="flex min-w-0 flex-col items-start">
+                <span>Profile & Backup</span>
+                {backupEnabled && backupEmail && (
+                  <span className="mt-0.5 max-w-[190px] truncate text-[10px] font-medium opacity-45">{backupEmail}</span>
+                )}
+              </span>
             </button>
           </div>
         </div>
