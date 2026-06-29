@@ -58,6 +58,56 @@ const MODELS = [
 ];
 const API_SECRET = "blank_page_secret_token_2026_secure";
 
+type CollaborativeOperation = {
+  opId: string;
+  customUrl: string;
+  baseVersion: number;
+  index: number;
+  deleteCount: number;
+  insertText: string;
+};
+
+type AppliedCollaborativeOperation = Omit<CollaborativeOperation, "baseVersion"> & {
+  version: number;
+  content: string;
+};
+
+const createStringOperation = (previousContent: string, nextContent: string) => {
+  if (previousContent === nextContent) return null;
+
+  let start = 0;
+  while (
+    start < previousContent.length &&
+    start < nextContent.length &&
+    previousContent[start] === nextContent[start]
+  ) {
+    start += 1;
+  }
+
+  let previousEnd = previousContent.length - 1;
+  let nextEnd = nextContent.length - 1;
+  while (
+    previousEnd >= start &&
+    nextEnd >= start &&
+    previousContent[previousEnd] === nextContent[nextEnd]
+  ) {
+    previousEnd -= 1;
+    nextEnd -= 1;
+  }
+
+  return {
+    index: start,
+    deleteCount: previousEnd - start + 1,
+    insertText: nextContent.slice(start, nextEnd + 1),
+  };
+};
+
+const applyStringOperation = (content: string, operation: Pick<CollaborativeOperation, "index" | "deleteCount" | "insertText">) => {
+  const index = Math.max(0, Math.min(operation.index, content.length));
+  const deleteCount = Math.max(0, Math.min(operation.deleteCount, content.length - index));
+  return `${content.slice(0, index)}${operation.insertText}${content.slice(index + deleteCount)}`;
+};
+
 export default function ClientPublishedPage({ customUrl, initialData }: ClientPublishedPageProps) {
   const [pageData, setPageData] = useState<PublishedPageData | null>(initialData);
   const [content, setContent] = useState(initialData?.content || "");
@@ -102,6 +152,93 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const hasLoadedRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const syncedContentRef = useRef(initialData?.content || "");
+  const documentVersionRef = useRef(0);
+  const localOperationIdsRef = useRef<Set<string>>(new Set());
+  const isApplyingRemoteRef = useRef(false);
+
+  const getCaretOffset = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editorRef.current?.contains(selection.anchorNode)) {
+      return null;
+    }
+
+    const range = selection.getRangeAt(0);
+    const preCaretRange = range.cloneRange();
+    preCaretRange.selectNodeContents(editorRef.current);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    return preCaretRange.toString().length;
+  };
+
+  const restoreCaretOffset = (offset: number | null) => {
+    if (offset === null || !editorRef.current || !pageData?.isEditable) return;
+
+    try {
+      const range = document.createRange();
+      const selection = window.getSelection();
+      let currentOffset = 0;
+      let found = false;
+
+      const walk = (node: Node) => {
+        if (found) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const length = node.textContent?.length || 0;
+          if (currentOffset + length >= offset) {
+            range.setStart(node, Math.max(0, offset - currentOffset));
+            range.collapse(true);
+            found = true;
+          } else {
+            currentOffset += length;
+          }
+          return;
+        }
+
+        node.childNodes.forEach(walk);
+      };
+
+      walk(editorRef.current);
+      if (found && selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    } catch {
+      // Cursor preservation is best-effort for rich HTML edits.
+    }
+  };
+
+  const applyCollaborativeContent = (newContent: string, preserveCaret = true) => {
+    const caretOffset = preserveCaret ? getCaretOffset() : null;
+    isApplyingRemoteRef.current = true;
+    setContent(newContent);
+    syncedContentRef.current = newContent;
+    if (editorRef.current && editorRef.current.innerHTML !== newContent) {
+      editorRef.current.innerHTML = newContent;
+      restoreCaretOffset(caretOffset);
+    }
+    queueMicrotask(() => {
+      isApplyingRemoteRef.current = false;
+    });
+  };
+
+  const sendCollaborativeEdit = (newContent: string) => {
+    if (!pageData?.isEditable || isApplyingRemoteRef.current) return;
+    if (!socketRef.current?.connected) return;
+
+    const operation = createStringOperation(syncedContentRef.current, newContent);
+    if (!operation) return;
+
+    const opId = `${socketRef.current?.id || "local"}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localOperationIdsRef.current.add(opId);
+    setIsSaving(true);
+    socketRef.current?.emit("collab-operation", {
+      ...operation,
+      opId,
+      customUrl,
+      baseVersion: documentVersionRef.current,
+    } satisfies CollaborativeOperation);
+
+    syncedContentRef.current = newContent;
+  };
 
   // Setup Socket.IO for Live Tracking
   useEffect(() => {
@@ -144,64 +281,36 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       console.log("🔌 Disconnected from Socket.IO server:", reason);
     });
 
-    socket.on("page-updated", (newContent: string) => {
-      // Update React state
-      setContent(newContent);
+    socket.on("collab-state", (state: { customUrl: string; content: string; version: number }) => {
+      if (state.customUrl !== customUrl) return;
+      documentVersionRef.current = state.version;
+      applyCollaborativeContent(state.content, false);
+    });
 
-      // Update DOM directly if the user is a viewer, or carefully if editor.
-      if (editorRef.current && editorRef.current.innerHTML !== newContent) {
-        // Save current selection to restore cursor if possible
-        const selection = window.getSelection();
-        let cursorOffset = 0;
-        if (selection && selection.rangeCount > 0 && editorRef.current.contains(selection.anchorNode)) {
-          // A very basic cursor preservation attempt (flawed for rich HTML but works for simple text)
-          const range = selection.getRangeAt(0);
-          const preCaretRange = range.cloneRange();
-          preCaretRange.selectNodeContents(editorRef.current);
-          preCaretRange.setEnd(range.endContainer, range.endOffset);
-          cursorOffset = preCaretRange.toString().length;
+    socket.on("collab-operation-applied", (operation: AppliedCollaborativeOperation) => {
+      if (operation.customUrl !== customUrl) return;
+
+      documentVersionRef.current = operation.version;
+      setIsSaving(false);
+      if (localOperationIdsRef.current.has(operation.opId)) {
+        localOperationIdsRef.current.delete(operation.opId);
+        if (syncedContentRef.current !== operation.content) {
+          applyCollaborativeContent(operation.content);
         }
-
-        editorRef.current.innerHTML = newContent;
-
-        // Try to restore cursor (this is very basic and won't work perfectly for complex HTML diffs, but it's better than jumping to start)
-        if (cursorOffset > 0 && pageData?.isEditable) {
-          try {
-            const range = document.createRange();
-            const sel = window.getSelection();
-
-            let currentOffset = 0;
-            let found = false;
-
-            const traverseNodes = (node: Node) => {
-              if (found) return;
-              if (node.nodeType === Node.TEXT_NODE) {
-                const length = node.textContent?.length || 0;
-                if (currentOffset + length >= cursorOffset) {
-                  range.setStart(node, cursorOffset - currentOffset);
-                  range.collapse(true);
-                  found = true;
-                } else {
-                  currentOffset += length;
-                }
-              } else {
-                for (let i = 0; i < node.childNodes.length; i++) {
-                  traverseNodes(node.childNodes[i]);
-                }
-              }
-            };
-
-            traverseNodes(editorRef.current);
-
-            if (found && sel) {
-              sel.removeAllRanges();
-              sel.addRange(range);
-            }
-          } catch (e) {
-            console.log("Cursor restoration failed after live update");
-          }
-        }
+        return;
       }
+
+      const nextContent = operation.content || applyStringOperation(syncedContentRef.current, operation);
+      applyCollaborativeContent(nextContent);
+    });
+
+    socket.on("collab-rejected", (payload: { opId?: string; message?: string }) => {
+      if (payload.opId) localOperationIdsRef.current.delete(payload.opId);
+      if (payload.message) console.error(payload.message);
+    });
+
+    socket.on("page-updated", (newContent: string) => {
+      applyCollaborativeContent(newContent);
     });
 
     return () => {
@@ -226,6 +335,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
       setPageData(data.data);
       setContent(data.data.content || "");
+      syncedContentRef.current = data.data.content || "";
       setIsLocked(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Incorrect secret key";
@@ -355,6 +465,10 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   // 7. Debounced Auto-save and sound trigger
   const triggerAutosave = (newContent: string) => {
     if (!pageData || !pageData.isEditable) return;
+    if (socketRef.current?.connected) {
+      setIsSaving(false);
+      return;
+    }
 
     // Clear existing timeout
     if (saveTimeoutRef.current) {
@@ -385,12 +499,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     const newContent = e.currentTarget.innerHTML;
     setContent(newContent);
     playTypewriterSound();
-
-    // Emit live to socket
-    if (socketRef.current) {
-      socketRef.current.emit("edit-page", { customUrl, content: newContent });
-    }
-
+    sendCollaborativeEdit(newContent);
     triggerAutosave(newContent);
   };
 
@@ -402,12 +511,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
       playTypewriterSound();
-
-      // Emit live to socket
-      if (socketRef.current) {
-        socketRef.current.emit("edit-page", { customUrl, content: newContent });
-      }
-
+      sendCollaborativeEdit(newContent);
       triggerAutosave(newContent);
     }
   };
@@ -539,11 +643,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
-
-      if (socketRef.current) {
-        socketRef.current.emit("edit-page", { customUrl, content: newContent });
-      }
-
+      sendCollaborativeEdit(newContent);
       triggerAutosave(newContent);
     }
     setTranslationResult("");
@@ -555,11 +655,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
-
-      if (socketRef.current) {
-        socketRef.current.emit("edit-page", { customUrl, content: newContent });
-      }
-
+      sendCollaborativeEdit(newContent);
       triggerAutosave(newContent);
     }
   };
