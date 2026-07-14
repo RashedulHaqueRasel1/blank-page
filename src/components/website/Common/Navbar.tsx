@@ -12,7 +12,8 @@ import {
   SquarePen,
   Info,
   FileExclamationPoint,
-  BellRing
+  BellRing,
+  Search
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -219,6 +220,7 @@ export default function Navbar() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [showSubscribeSuccessModal, setShowSubscribeSuccessModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [profileStep, setProfileStep] = useState<"email" | "otp" | "pending">("email");
   const [profileEmail, setProfileEmail] = useState("");
   const [subscribeEmail, setSubscribeEmail] = useState("");
@@ -232,6 +234,7 @@ export default function Navbar() {
   const [backupEnabled, setBackupEnabled] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("backup-enabled") === "true" : false));
   const [isBackupSyncing, setIsBackupSyncing] = useState(false);
   const [lastBackupSyncAt, setLastBackupSyncAt] = useState<string | null>(() => (typeof window !== "undefined" ? localStorage.getItem("backup-last-sync") : null));
+  const [sidebarSearch, setSidebarSearch] = useState("");
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
@@ -374,6 +377,22 @@ export default function Navbar() {
   const [sidebarTab, setSidebarTab] = useState<"local" | "published">("local");
   const [publishedPages, setPublishedPages] = useState<PublishedPage[]>([]);
   const [isPublishedLoading, setIsPublishedLoading] = useState(false);
+  const normalizedSidebarSearch = sidebarSearch.trim().toLowerCase();
+  const filteredDocuments = documents.filter((doc) => {
+    if (!normalizedSidebarSearch) return true;
+    return (
+      doc.title.toLowerCase().includes(normalizedSidebarSearch) ||
+      doc.content.toLowerCase().includes(normalizedSidebarSearch)
+    );
+  });
+  const filteredPublishedPages = publishedPages.filter((page) => {
+    if (!normalizedSidebarSearch) return true;
+    const title = (page.title || "Untitled").toLowerCase();
+    return (
+      title.includes(normalizedSidebarSearch) ||
+      page.customUrl.toLowerCase().includes(normalizedSidebarSearch)
+    );
+  });
 
   const getOrCreateWriterId = (): string => {
     if (typeof window === "undefined") return "";
@@ -461,6 +480,10 @@ export default function Navbar() {
 
   const handleImportPublishedPage = async (e: React.MouseEvent, page: PublishedPage) => {
     e.stopPropagation();
+    await importPublishedPage(page);
+  };
+
+  const importPublishedPage = async (page: PublishedPage) => {
     try {
       const docs = await fetchAllDocs();
       const existingDoc = docs.find(d => d.publishedUrl === page.customUrl);
@@ -631,6 +654,21 @@ export default function Navbar() {
     setIsSubscribeSubmitting(false);
     setShowSubscribeSuccessModal(false);
     setShowSubscribeModal(true);
+  };
+
+  const openSearchModal = () => {
+    setShowSearchModal(true);
+  };
+
+  const handleSearchDocumentSelect = (id: string) => {
+    handleSwitchDoc(id);
+    setShowSearchModal(false);
+  };
+
+  const handleSearchPublishedSelect = async (page: PublishedPage) => {
+    await importPublishedPage(page);
+    setShowSearchModal(false);
+    setShowSidebar(false);
   };
 
   const handleSubscribeSubmit = async () => {
@@ -1249,6 +1287,153 @@ export default function Navbar() {
         </div>
       )}
 
+      {showSearchModal && (
+        <div className="fixed inset-0 z-[212] flex items-start justify-center px-5 pt-20 sm:pt-24 animate-in fade-in duration-200">
+          <button
+            className="absolute inset-0 bg-black/10 backdrop-blur-[2px] cursor-default"
+            onClick={() => setShowSearchModal(false)}
+            aria-label="Close search modal"
+          />
+          <div
+            className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+              color: "var(--editor-text)",
+            }}
+          >
+            <button
+              onClick={() => setShowSearchModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 opacity-45 transition-opacity hover:opacity-100 cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X size={16} strokeWidth={1.8} />
+            </button>
+            <div className="flex items-start gap-4 pr-8">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                style={{
+                  background: "color-mix(in srgb, var(--editor-text) 7%, transparent)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <Search size={18} strokeWidth={1.8} />
+              </div>
+              <div>
+                <h2 className="text-[20px] font-semibold tracking-tight">Search {sidebarTab === "local" ? "drafts" : "published pages"}</h2>
+                <p className="mt-1.5 text-[13px] leading-5 opacity-60">
+                  {sidebarTab === "local"
+                    ? "Find drafts by title or content."
+                    : "Find published pages by title or short URL."}
+                </p>
+              </div>
+            </div>
+            <div
+              className="mt-5 flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-[0_14px_30px_rgba(0,0,0,0.04)]"
+              style={{
+                background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                borderColor: "var(--border-color)",
+              }}
+            >
+              <Search size={15} className="shrink-0 opacity-45" />
+              <input
+                type="text"
+                autoFocus
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                placeholder={sidebarTab === "local" ? "Search your drafts..." : "Search published pages..."}
+                className="w-full bg-transparent text-[13px] outline-none placeholder:opacity-40"
+                style={{ color: "var(--editor-text)" }}
+              />
+              {sidebarSearch && (
+                <button
+                  onClick={() => setSidebarSearch("")}
+                  className="shrink-0 cursor-pointer rounded-full opacity-35 transition-opacity hover:opacity-100"
+                  style={{ color: "var(--editor-text)" }}
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div
+              className="mt-4 rounded-xl border px-4 py-3 text-[12px] leading-5 opacity-65"
+              style={{
+                background: "color-mix(in srgb, var(--editor-text) 3%, transparent)",
+                borderColor: "var(--border-color)",
+              }}
+            >
+              {sidebarTab === "local"
+                ? `${filteredDocuments.length} draft${filteredDocuments.length === 1 ? "" : "s"} matched your search.`
+                : `${filteredPublishedPages.length} page${filteredPublishedPages.length === 1 ? "" : "s"} matched your search.`}
+            </div>
+            <div className="mt-4 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+              {sidebarTab === "local" ? (
+                filteredDocuments.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed px-4 py-10 text-center opacity-45" style={{ borderColor: "var(--border-color)" }}>
+                    <Search size={20} className="mx-auto mb-3" />
+                    <span className="block text-[12px] font-bold">No drafts found</span>
+                    <span className="mt-1 block text-[10px] leading-relaxed">Try another title or keyword.</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {filteredDocuments.map((doc) => (
+                      <button
+                        key={doc.id}
+                        onClick={() => handleSearchDocumentSelect(doc.id)}
+                        className="w-full rounded-2xl border px-4 py-3 text-left transition-all hover:opacity-85 cursor-pointer"
+                        style={{
+                          background: activeDocId === doc.id ? "color-mix(in srgb, var(--editor-text) 6%, transparent)" : "color-mix(in srgb, var(--editor-text) 3%, transparent)",
+                          borderColor: "var(--border-color)",
+                          color: "var(--editor-text)",
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <FileText size={15} className="mt-0.5 shrink-0 opacity-55" />
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-semibold">{doc.title}</p>
+                            <p className="mt-1 text-[10px] opacity-45">{formatTime(doc.lastModified)}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : filteredPublishedPages.length === 0 ? (
+                <div className="rounded-2xl border border-dashed px-4 py-10 text-center opacity-45" style={{ borderColor: "var(--border-color)" }}>
+                  <Search size={20} className="mx-auto mb-3" />
+                  <span className="block text-[12px] font-bold">No published page found</span>
+                  <span className="mt-1 block text-[10px] leading-relaxed">Try another page title or short URL.</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {filteredPublishedPages.map((page) => (
+                    <button
+                      key={page.customUrl}
+                      onClick={() => handleSearchPublishedSelect(page)}
+                      className="w-full rounded-2xl border px-4 py-3 text-left transition-all hover:opacity-85 cursor-pointer"
+                      style={{
+                        background: "color-mix(in srgb, var(--editor-text) 3%, transparent)",
+                        borderColor: "var(--border-color)",
+                        color: "var(--editor-text)",
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Globe size={15} className="mt-0.5 shrink-0 text-indigo-500 opacity-80" />
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold">{page.title || "Untitled"}</p>
+                          <p className="mt-1 truncate text-[10px] opacity-45">/{page.customUrl}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showProfileModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center px-5 animate-in fade-in duration-200">
           <button
@@ -1547,6 +1732,34 @@ export default function Navbar() {
             </span>
           </button>
           <button
+            onClick={openSearchModal}
+            className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+            style={{ color: "var(--editor-text)" }}
+            aria-label="Search"
+          >
+            <Search size={17} strokeWidth={1.8} />
+            <span
+              className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+              style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+            >
+              Search
+            </span>
+          </button>
+          <button
+            onClick={handleOpenPublishModal}
+            className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+            style={{ color: "var(--editor-text)" }}
+            aria-label="Publish"
+          >
+            <CloudUpload size={19} strokeWidth={1.8} />
+            <span
+              className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+              style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+            >
+              Publish
+            </span>
+          </button>
+          <button
             onClick={() => { setSidebarTab("published"); setShowSidebar(true); fetchPublishedPages(); }}
             className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
             style={{ color: "var(--editor-text)" }}
@@ -1693,9 +1906,23 @@ export default function Navbar() {
 
           {sidebarTab === "local" ? (
             <>
-              <button onClick={() => handleCreateNewDoc()} className="flex items-center justify-center gap-3 w-full py-3.5 mb-6 rounded-xl text-[14px] font-semibold transition-all active:scale-[0.98] cursor-pointer group" style={{ border: "1px solid var(--border-color)", background: "var(--accent-color)10", color: "var(--editor-text) " }}>
-                <Plus size={18} className="opacity-60 group-hover:opacity-100 transition-opacity" /> New Document
-              </button>
+              <div className="mb-6 flex items-center gap-3">
+                <button onClick={() => handleCreateNewDoc()} className="flex items-center justify-center gap-3 flex-1 py-3.5 rounded-xl text-[14px] font-semibold transition-all active:scale-[0.98] cursor-pointer group" style={{ border: "1px solid var(--border-color)", background: "var(--accent-color)10", color: "var(--editor-text) " }}>
+                  <Plus size={18} className="opacity-60 group-hover:opacity-100 transition-opacity" /> New Document
+                </button>
+                <button
+                  onClick={openSearchModal}
+                  className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-xl border transition-all hover:opacity-85 cursor-pointer"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                  }}
+                  aria-label="Open search"
+                >
+                  <Search size={17} strokeWidth={1.8} />
+                </button>
+              </div>
 
               <div
                 className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1 pr-2"
@@ -1704,7 +1931,15 @@ export default function Navbar() {
                 <div className="flex items-center justify-between px-4 mb-4">
                   <span className="text-[14px] font-bold opacity-30" style={{ color: "var(--editor-text)" }}>Active Tabs</span>
                 </div>
-                {documents.map((doc) => (
+                {filteredDocuments.length === 0 ? (
+                  <div className="mx-1 mt-2 flex flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-10 text-center opacity-45" style={{ borderColor: "var(--border-color)" }}>
+                    <Search size={20} className="mb-3" />
+                    <span className="text-[12px] font-bold">No drafts found</span>
+                    <span className="mt-1 text-[10px] leading-relaxed">
+                      Try a different title, keyword, or clear the search.
+                    </span>
+                  </div>
+                ) : filteredDocuments.map((doc) => (
                   <div key={doc.id} className="group relative flex items-center mb-1 doc-menu-container">
                     <button
                       onClick={() => handleSwitchDoc(doc.id)}
@@ -1765,6 +2000,18 @@ export default function Navbar() {
             >
               <div className="flex items-center justify-between px-4 mb-4">
                 <span className="text-[14px] font-bold opacity-30" style={{ color: "var(--editor-text)" }}>Published Pages</span>
+                <button
+                  onClick={openSearchModal}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all hover:opacity-85 cursor-pointer"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                  }}
+                  aria-label="Open search"
+                >
+                  <Search size={15} strokeWidth={1.8} />
+                </button>
               </div>
 
               {isPublishedLoading ? (
@@ -1778,8 +2025,14 @@ export default function Navbar() {
                   <span className="text-[12px] font-bold">No published pages</span>
                   <span className="text-[10px] leading-relaxed">Publish a local draft to see it listed here!</span>
                 </div>
+              ) : filteredPublishedPages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-2 border border-dashed border-[var(--border-color)] rounded-2xl opacity-40">
+                  <Search size={22} />
+                  <span className="text-[12px] font-bold">No published page found</span>
+                  <span className="text-[10px] leading-relaxed">Try another page title or short URL.</span>
+                </div>
               ) : (
-                publishedPages.map((page) => (
+                filteredPublishedPages.map((page) => (
                   <div key={page.customUrl} className="group relative flex items-center mb-1 doc-menu-container">
                     <button
                       onClick={(e) => { e.preventDefault(); handleImportPublishedPage(e, page); }}
