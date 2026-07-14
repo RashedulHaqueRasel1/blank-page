@@ -4,7 +4,6 @@
   "private": true,
   "engines": {
     "node": "22.x",
-    "npm": "10.x"
   },
   "scripts": {
     "dev": "next dev --webpack",
