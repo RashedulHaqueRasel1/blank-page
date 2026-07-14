@@ -816,7 +816,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
             <ArrowLeft size={16} strokeWidth={2} className="text-[var(--editor-text)]" />
           </Link>
           <span className="text-[12px] font-extrabold tracking-wider uppercase opacity-40 text-[var(--editor-text)] hidden sm:inline">
-            My Blank Page Shared
+            Blank Notes Shared
           </span>
         </div>
 

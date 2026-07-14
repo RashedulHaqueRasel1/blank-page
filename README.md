@@ -1,6 +1,6 @@
-# My Blank Page — Minimalist AI-Powered Writing Editor & Publishing Platform
+# Blank Notes — Minimalist AI-Powered Writing Editor & Publishing Platform
 
-**My Blank Page** is a distraction-free, privacy-first writing application built for creators who want to write, publish, and share their work instantly — with zero logins required. It combines a local-first offline editor with a powerful real-time publishing engine, AI translation, optional password protection, and self-destructing one-time view pages.
+**Blank Notes** is a distraction-free, privacy-first writing application built for creators who want to write, publish, and share their work instantly — with zero logins required. It combines a local-first offline editor with a powerful real-time publishing engine, AI translation, optional password protection, and self-destructing one-time view pages.
 
 ---
 

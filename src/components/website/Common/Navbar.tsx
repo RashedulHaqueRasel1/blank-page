@@ -1,11 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useRef, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
-  AlignLeft, MoreHorizontal, Type, Maximize2, Palette,
+  Menu, Ellipsis, Type, Maximize2, Palette,
   EyeOff, Eye, X, Plus, FileText, Trash2, ChevronLeft, Check, Clock,
   Pin, PinOff, Edit3, MoreVertical, ChevronRight, Volume2, VolumeX, Globe, ExternalLink,
-  PanelLeft, SquarePen, Library, User, ShieldCheck, LogOut
+  BookOpenText, NotebookPen, Library, User, ShieldCheck, LogOut, Send, SendHorizontal, PenSquare,
+  CloudUpload,
+  SquareChevronRight,
+  SquarePen,
+  Info,
+  FileExclamationPoint,
+  BellRing
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -210,8 +217,13 @@ export default function Navbar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  const [showSubscribeSuccessModal, setShowSubscribeSuccessModal] = useState(false);
   const [profileStep, setProfileStep] = useState<"email" | "otp" | "pending">("email");
   const [profileEmail, setProfileEmail] = useState("");
+  const [subscribeEmail, setSubscribeEmail] = useState("");
+  const [subscribeError, setSubscribeError] = useState("");
+  const [isSubscribeSubmitting, setIsSubscribeSubmitting] = useState(false);
   const [profileOtp, setProfileOtp] = useState("");
   const [profileError, setProfileError] = useState("");
   const [profileDevCode, setProfileDevCode] = useState("");
@@ -235,6 +247,7 @@ export default function Navbar() {
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [publishContent, setPublishContent] = useState("");
   const isProfileEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileEmail.trim());
+  const isSubscribeEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subscribeEmail.trim());
   const isProfileOtpValid = /^\d{6}$/.test(profileOtp);
 
   const updateOtpDigit = (index: number, value: string) => {
@@ -492,7 +505,7 @@ export default function Navbar() {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
       store.add(newDoc);
-      
+
       tx.oncomplete = () => {
         handleSwitchDoc(id);
         showToast("Opened published page for editing");
@@ -511,13 +524,13 @@ export default function Navbar() {
     try {
       showToast("Updating live page...", "info");
       const authorId = getOrCreateWriterId();
-      
+
       let activeIp = "";
       try {
         const res = await fetch('/api/sync');
         const data = await res.json();
         if (data.session) activeIp = atob(data.session);
-      } catch (err) {}
+      } catch (err) { }
 
       const res = await fetch(`/api/pages/${activeDocPublishedUrl}`, {
         method: "PUT",
@@ -610,6 +623,43 @@ export default function Navbar() {
     setProfileDevCode("");
     setIsProfileSubmitting(false);
     setShowProfileModal(true);
+  };
+
+  const openSubscribeModal = () => {
+    setSubscribeEmail("");
+    setSubscribeError("");
+    setIsSubscribeSubmitting(false);
+    setShowSubscribeSuccessModal(false);
+    setShowSubscribeModal(true);
+  };
+
+  const handleSubscribeSubmit = async () => {
+    if (!isSubscribeEmailValid || isSubscribeSubmitting) return;
+
+    setIsSubscribeSubmitting(true);
+    setSubscribeError("");
+    try {
+      const res = await fetch("/api/subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: subscribeEmail.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to subscribe");
+      }
+
+      setShowSubscribeModal(false);
+      setShowSubscribeSuccessModal(true);
+      setSubscribeEmail("");
+      showToast("Subscribed successfully");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to subscribe";
+      setSubscribeError(message);
+    } finally {
+      setIsSubscribeSubmitting(false);
+    }
   };
 
   const restoreBackupFromCloud = async (emailOverride?: string, tokenOverride?: string | null, showResultToast = true) => {
@@ -1061,6 +1111,144 @@ export default function Navbar() {
 
       {showSidebar && <div className="fixed inset-0 bg-black/10 dark:bg-black/40 backdrop-blur-xl z-[90] transition-all duration-300" />}
 
+      {showSubscribeModal && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center px-5 animate-in fade-in duration-200">
+          <button
+            className="absolute inset-0 bg-black/10 backdrop-blur-[2px] cursor-default"
+            onClick={() => setShowSubscribeModal(false)}
+            aria-label="Close subscribe modal"
+          />
+          <div
+            className="relative w-full max-w-[390px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+              color: "var(--editor-text)",
+            }}
+          >
+            <button
+              onClick={() => setShowSubscribeModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 opacity-45 transition-opacity hover:opacity-100 cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X size={16} strokeWidth={1.8} />
+            </button>
+            <div className="flex items-start gap-4 pr-8">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                style={{
+                  background: "color-mix(in srgb, var(--editor-text) 7%, transparent)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <BellRing size={19} strokeWidth={1.8} />
+              </div>
+              <div>
+                <h2 className="text-[20px] font-semibold tracking-tight">Subscribe to Blank Notes</h2>
+                <p className="mt-1.5 text-[13px] leading-5 opacity-60">
+                  Get updates, announcements, and new feature news directly in your inbox.
+                </p>
+              </div>
+            </div>
+            <div
+              className="mt-5 rounded-xl border px-4 py-3 text-[12px] leading-5"
+              style={{
+                background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                borderColor: "var(--border-color)",
+              }}
+            >
+              Enter your email address to join our subscriber list.
+            </div>
+            <label className="mt-6 block text-[12px] font-semibold opacity-60" htmlFor="subscribe-email">
+              Email address
+            </label>
+            <input
+              id="subscribe-email"
+              type="email"
+              autoFocus
+              value={subscribeEmail}
+              onChange={(e) => {
+                setSubscribeEmail(e.target.value);
+                setSubscribeError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && isSubscribeEmailValid) handleSubscribeSubmit();
+              }}
+              placeholder="you@example.com"
+              className="mt-2 w-full rounded-xl border px-4 py-3 text-[14px] outline-none transition-colors focus:border-current"
+              style={{
+                background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                borderColor: "var(--border-color)",
+                color: "var(--editor-text)",
+              }}
+            />
+            {subscribeError && (
+              <p className="mt-2 text-[12px] font-semibold text-red-500">{subscribeError}</p>
+            )}
+            <button
+              type="button"
+              disabled={!isSubscribeEmailValid || isSubscribeSubmitting}
+              onClick={handleSubscribeSubmit}
+              className="mt-4 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+              style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+            >
+              {isSubscribeSubmitting ? "Submitting..." : "Subscribe"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showSubscribeSuccessModal && (
+        <div className="fixed inset-0 z-[215] flex items-center justify-center px-5 animate-in fade-in duration-200">
+          <button
+            className="absolute inset-0 bg-black/10 backdrop-blur-[2px] cursor-default"
+            onClick={() => setShowSubscribeSuccessModal(false)}
+            aria-label="Close subscribe success modal"
+          />
+          <div
+            className="relative w-full max-w-[380px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+              color: "var(--editor-text)",
+            }}
+          >
+            <button
+              onClick={() => setShowSubscribeSuccessModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 opacity-45 transition-opacity hover:opacity-100 cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X size={16} strokeWidth={1.8} />
+            </button>
+            <div className="flex items-start gap-4 pr-8">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                style={{
+                  background: "color-mix(in srgb, var(--accent-color) 12%, transparent)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <Check size={20} strokeWidth={2} className="text-green-500" />
+              </div>
+              <div>
+                <h2 className="text-[20px] font-semibold tracking-tight">Subscription successful</h2>
+                <p className="mt-1.5 text-[13px] leading-5 opacity-60">
+                  Your email has been added successfully. We will keep you updated with important news and feature releases.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSubscribeSuccessModal(false)}
+              className="mt-6 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] cursor-pointer"
+              style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
       {showProfileModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center px-5 animate-in fade-in duration-200">
           <button
@@ -1336,7 +1524,7 @@ export default function Navbar() {
             style={{ background: "color-mix(in srgb, var(--editor-text) 8%, transparent)" }}
             aria-label="Open sidebar"
           >
-            <PanelLeft size={18} strokeWidth={1.7} />
+            <SquareChevronRight size={18} strokeWidth={1.7} />
             <span
               className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
               style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
@@ -1364,7 +1552,7 @@ export default function Navbar() {
             style={{ color: "var(--editor-text)" }}
             aria-label="Published pages"
           >
-            <Library size={18} strokeWidth={1.7} />
+            <Send size={18} strokeWidth={1.7} />
             <span
               className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
               style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
@@ -1473,7 +1661,7 @@ export default function Navbar() {
       <div ref={sidebarRef} className={`fixed top-0 left-0 h-full w-[280px] bg-[var(--editor-bg)] border-r border-[var(--border-color)] z-[100] transform transition-transform duration-300 ease-out shadow-2xl ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full p-6">
           <div className="flex items-center justify-between mb-10">
-            <span className="text-[14px] font-bold tracking-widest uppercase opacity-40" style={{ color: "var(--editor-text)" }}>My Blank Page</span>
+            <span className="text-[14px] font-bold tracking-widest uppercase opacity-40" style={{ color: "var(--editor-text)" }}>Blank Notes</span>
             <button onClick={() => setShowSidebar(false)} className="transition-colors cursor-pointer opacity-50 hover:opacity-100" style={{ color: "var(--editor-text)" }}>
               <X size={20} strokeWidth={1.5} />
             </button>
@@ -1683,10 +1871,10 @@ export default function Navbar() {
       <nav className="w-full h-14 bg-[var(--navbar-bg)] backdrop-blur-md md:bg-transparent md:backdrop-blur-none flex items-center justify-between px-4 md:pl-20 md:pr-6 fixed top-0 left-0 z-50 transition-all duration-300 md:pointer-events-none">
         <div className="flex items-center gap-4 md:pointer-events-auto">
           <button onClick={() => { setShowSidebar(true); refreshDocs(true); }} className="flex md:hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer" title="Menu">
-            <AlignLeft size={22} strokeWidth={1.5} />
+            <SquareChevronRight size={20} strokeWidth={1.8} />
           </button>
           <button onClick={() => handleCreateNewDoc()} className="flex md:hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer items-center justify-center" title="New document">
-            <SquarePen size={19} strokeWidth={1.5} />
+            <PenSquare size={18} strokeWidth={1.8} />
           </button>
         </div>
 
@@ -1711,7 +1899,7 @@ export default function Navbar() {
                 title="Update live published page"
               >
                 <div className="absolute -inset-1 bg-green-500/20 rounded-full blur opacity-40 group-hover:opacity-75 transition duration-200" />
-                <Globe size={18} strokeWidth={2} className="relative animate-pulse" />
+                <Send size={17} strokeWidth={2} className="relative animate-pulse" />
                 <span className="text-[12px] font-bold hidden md:inline relative">Update Live</span>
               </button>
             ) : (
@@ -1720,13 +1908,13 @@ export default function Navbar() {
                 className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer opacity-70 hover:opacity-100 flex items-center gap-1.5"
                 title="Publish Page"
               >
-                <Globe size={18} strokeWidth={1.5} />
+                <CloudUpload size={17} strokeWidth={1.8} />
                 <span className="text-[12px] font-semibold hidden md:inline">Publish</span>
               </button>
             )}
             <div className="relative" ref={dropdownRef}>
-              <button onClick={() => setShowDropdown(!showDropdown)} className="hover:text-black dark:hover:text-white transition-colors duration-200">
-                <MoreHorizontal size={19} strokeWidth={1.5} />
+              <button onClick={() => setShowDropdown(!showDropdown)} className="hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer">
+                <Ellipsis size={19} strokeWidth={1.8} />
               </button>
               {showDropdown && (
                 <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -1744,10 +1932,16 @@ export default function Navbar() {
                         <div className="flex items-center gap-3"><Type size={15} /> Font style</div>
                         <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                       </button>
-                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
                       <button onClick={() => { const val = !showCounter; setShowCounter(val); localStorage.setItem("show-counter", String(val)); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3">{showCounter ? <EyeOff size={15} /> : <Eye size={15} />} {showCounter ? "Hide counter" : "Show counter"}</div>
                         <ShortcutHint>C</ShortcutHint>
+                      </button>
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+
+
+                      <button onClick={() => setMenuView("more")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3"><Info size={15} /> More</div>
+                        <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                       </button>
                     </>
                   ) : menuView === "themes" ? (
@@ -1765,6 +1959,43 @@ export default function Navbar() {
                           {theme === t.id && <Check size={14} className="text-[var(--accent-color)]" />}
                         </button>
                       ))}
+                    </>
+                  ) : menuView === "more" ? (
+                    <>
+                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
+                        <ChevronLeft size={14} /> More
+                      </button>
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      <Link
+                        href="/about"
+                        onClick={() => {
+                          setShowDropdown(false);
+                          setMenuView("main");
+                        }}
+                        className="w-full px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors"
+                      >
+                        <FileExclamationPoint size={15} /> About
+                      </Link>
+                      <Link
+                        href="/terms"
+                        onClick={() => {
+                          setShowDropdown(false);
+                          setMenuView("main");
+                        }}
+                        className="w-full px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors"
+                      >
+                        <FileText size={15} /> Terms
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setShowDropdown(false);
+                          setMenuView("main");
+                          openSubscribeModal();
+                        }}
+                        className="w-full px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors cursor-pointer"
+                      >
+                        <BellRing size={15} /> Subscribe
+                      </button>
                     </>
                   ) : (
                     <>

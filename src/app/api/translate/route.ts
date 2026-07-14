@@ -36,7 +36,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://blank-page-v1.vercel.app/", // Optional: your site URL
-        "X-Title": "My Blank Page Editor" // Optional: your site name
+        "X-Title": "Blank Notes Editor" // Optional: your site name
       },
       body: JSON.stringify({
         model: model,

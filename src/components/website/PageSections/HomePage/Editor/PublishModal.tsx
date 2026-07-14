@@ -199,7 +199,7 @@ export default function PublishModal({ isOpen, onClose, editorContent, onPublish
               </div>
               <div>
                 <h2 className="text-[16px] font-bold tracking-tight leading-tight">Publish to Web</h2>
-                <p className="text-[11px] opacity-35 mt-0.5">Share your My blank page with the world</p>
+                <p className="text-[11px] opacity-35 mt-0.5">Share your Blank Notes with the world</p>
               </div>
             </div>
             <button

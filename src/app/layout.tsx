@@ -40,9 +40,9 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "My Blank Page",
+  title: "Blank Notes",
   description:
-    "My Blank page for writing",
+    "Blank Notes for writing",
 };
 
 export default function RootLayout({
