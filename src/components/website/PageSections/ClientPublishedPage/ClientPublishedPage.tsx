@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Shield, Edit, AlertCircle, Clock, ArrowLeft, Loader2, Check,
   Volume2, VolumeX, MoreHorizontal, Palette, Type, ChevronLeft,
-  ChevronRight, Maximize2, Eye, EyeOff
+  ChevronRight, Maximize2, Eye, EyeOff, Copy, SquarePen, FileText, Info, BellRing, X
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -57,6 +57,32 @@ const MODELS = [
   { id: "m2", label: "Pro Mode" }
 ];
 const API_SECRET = "blank_page_secret_token_2026_secure";
+const PRODUCT_UPDATES = [
+  {
+    date: "2026-07-15",
+    area: "Published Page",
+    title: "Cleaner published reading experience",
+    body: "Simplified the published page layout, refined top actions, added mobile-friendly copy behavior, and connected a quick new-document shortcut back to the home editor.",
+  },
+  {
+    date: "2026-07-14",
+    area: "Publishing Flow",
+    title: "Live page update improvements",
+    body: "Improved linked draft publishing so writers can push updates to an existing shared page more smoothly from the main workspace.",
+  },
+  {
+    date: "2026-07-13",
+    area: "Security",
+    title: "Protected page access polish",
+    body: "Upgraded the unlock experience for protected pages with clearer feedback and a cleaner verification flow.",
+  },
+  {
+    date: "2026-07-12",
+    area: "Editor",
+    title: "Translation and collaboration support",
+    body: "Expanded selected-text actions with translation tools and improved real-time syncing behavior for editable shared pages.",
+  },
+];
 
 type CollaborativeOperation = {
   opId: string;
@@ -131,6 +157,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   // AI Translation & Selection States
   const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; show: boolean }>({ top: 0, left: 0, show: false });
   const [copied, setCopied] = useState(false);
+  const [pageCopied, setPageCopied] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationResult, setTranslationResult] = useState("");
   const [showTranslateOptions, setShowTranslateOptions] = useState(false);
@@ -145,6 +172,12 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const [showDropdown, setShowDropdown] = useState(false);
   const [menuView, setMenuView] = useState("main");
   const [clientIp, setClientIp] = useState("");
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  const [subscribeEmail, setSubscribeEmail] = useState("");
+  const [subscribeError, setSubscribeError] = useState("");
+  const [isSubscribeSubmitting, setIsSubscribeSubmitting] = useState(false);
+  const [showSubscribeSuccess, setShowSubscribeSuccess] = useState(false);
+  const [showUpdatesModal, setShowUpdatesModal] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -558,6 +591,27 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     return () => document.removeEventListener("selectionchange", handleSelection);
   }, []);
 
+  useEffect(() => {
+    if (pageData?.isEditable || isLocked) return;
+
+    const handleSelectAll = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a") return;
+      if (!editorRef.current) return;
+
+      event.preventDefault();
+      const selection = window.getSelection();
+      if (!selection) return;
+
+      const range = document.createRange();
+      range.selectNodeContents(editorRef.current);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    };
+
+    document.addEventListener("keydown", handleSelectAll);
+    return () => document.removeEventListener("keydown", handleSelectAll);
+  }, [pageData?.isEditable, isLocked]);
+
   // Visual Selection Highlight
   useEffect(() => {
     if (showTranslateOptions && selectedText) {
@@ -577,6 +631,50 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       navigator.clipboard.writeText(selection.toString());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handlePageCopy = async () => {
+    const plainText = stripHtml(content);
+    if (!plainText.trim()) return;
+
+    await navigator.clipboard.writeText(plainText);
+    setPageCopied(true);
+    setTimeout(() => setPageCopied(false), 2000);
+  };
+
+  const handleCreateDocumentRedirect = () => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("create-new-doc-on-home", "true");
+    window.location.href = "/";
+  };
+
+  const handleSubscribe = async () => {
+    const email = subscribeEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setSubscribeError("Enter a valid email address.");
+      return;
+    }
+
+    setIsSubscribeSubmitting(true);
+    setSubscribeError("");
+    try {
+      const res = await fetch("/api/subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to subscribe");
+      }
+
+      setShowSubscribeSuccess(true);
+      setSubscribeEmail("");
+    } catch (err) {
+      setSubscribeError(err instanceof Error ? err.message : "Failed to subscribe");
+    } finally {
+      setIsSubscribeSubmitting(false);
     }
   };
 
@@ -660,6 +758,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     }
   };
 
+  const plainTextContent = stripHtml(content);
   // Error/404 Page (Stealth deletion/expiration!)
   if (error || !pageData) {
     return (
@@ -802,7 +901,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
       {/* Top Header Bar */}
       <header
-        className="w-full h-14 border-b flex items-center justify-between px-6 md:px-12 fixed top-0 left-0 backdrop-blur-md z-50 transition-colors duration-300"
+        className="w-full h-14 border-b flex items-center justify-between px-4 md:px-8 xl:px-12 fixed top-0 left-0 backdrop-blur-md z-50 transition-colors duration-300"
         style={{
           background: "var(--navbar-bg)",
           borderColor: "var(--border-color)",
@@ -821,7 +920,37 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         </div>
 
         {/* Action Controls & Metadata Tags */}
-        <div className="flex items-center gap-4 text-[#666] dark:text-[#aaa]">
+        <div className="flex items-center gap-2 sm:gap-4 text-[#666] dark:text-[#aaa]">
+          <button
+            onClick={handleCreateDocumentRedirect}
+            className="inline-flex items-center justify-center rounded-full p-2.5 transition-all cursor-pointer hover:opacity-90"
+            style={{
+              background: "color-mix(in srgb, var(--editor-text) 6%, transparent)",
+              color: "var(--editor-text)",
+              border: "1px solid color-mix(in srgb, var(--border-color) 92%, transparent)",
+            }}
+            title="New document"
+          >
+            <SquarePen size={15} />
+          </button>
+
+          <button
+            onClick={handlePageCopy}
+            disabled={!plainTextContent.trim()}
+            className="inline-flex items-center gap-2 rounded-full px-2.5 lg:px-3.5 py-2 text-[11px] sm:text-[12px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            style={{
+              background: pageCopied
+                ? "color-mix(in srgb, #22c55e 14%, transparent)"
+                : "color-mix(in srgb, var(--editor-text) 6%, transparent)",
+              color: pageCopied ? "#16a34a" : "var(--editor-text)",
+              border: "1px solid color-mix(in srgb, var(--border-color) 92%, transparent)",
+            }}
+            title="Copy full page text"
+          >
+            {pageCopied ? <Check size={14} /> : <Copy size={14} />}
+            <span className="hidden lg:inline">{pageCopied ? "Copied" : "Copy Page"}</span>
+          </button>
+
           {/* Expiration Tag */}
           {pageData.expiresAt && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 text-orange-500 text-[10px] font-bold">
@@ -925,6 +1054,14 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                       <span className="flex items-center gap-3"><Type size={15} /> Font style</span>
                       <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                     </button>
+                    <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                    <button
+                      onClick={() => setMenuView("more")}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Info size={15} /> More</span>
+                      <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
+                    </button>
                   </>
                 ) : menuView === "themes" ? (
                   <>
@@ -948,6 +1085,58 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                         {theme === t.id && <Check size={14} className="text-[var(--accent-color)]" />}
                       </button>
                     ))}
+                  </>
+                ) : menuView === "more" ? (
+                  <>
+                    <button
+                      onClick={() => setMenuView("main")}
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer text-[var(--editor-text)]"
+                    >
+                      <ChevronLeft size={14} /> More
+                    </button>
+                    <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                    <Link
+                      href="/about"
+                      onClick={() => {
+                        setShowDropdown(false);
+                        setMenuView("main");
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Info size={15} /> About</span>
+                    </Link>
+                    <Link
+                      href="/terms"
+                      onClick={() => {
+                        setShowDropdown(false);
+                        setMenuView("main");
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><FileText size={15} /> Terms</span>
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setShowSubscribeModal(true);
+                        setShowDropdown(false);
+                        setMenuView("main");
+                        setShowSubscribeSuccess(false);
+                        setSubscribeError("");
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><BellRing size={15} /> Subscriber</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUpdatesModal(true);
+                        setShowDropdown(false);
+                        setMenuView("main");
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Clock size={15} /> Updates</span>
+                    </button>
                   </>
                 ) : (
                   <>
@@ -1005,14 +1194,14 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       )}
 
       {/* Shared Document Content Viewport */}
-      <div className={`w-full max-w-6xl px-8 md:px-20 flex-1 ${pageData.oneTimeView ? 'py-28 mt-12' : 'py-20 mt-12'}`}>
+      <div className={`w-full max-w-6xl px-5 md:px-10 lg:px-16 flex-1 ${pageData.oneTimeView ? 'pt-28 pb-12' : 'pt-22 pb-12'}`}>
         <div
           ref={editorRef}
           contentEditable={pageData.isEditable}
           onInput={handleInput}
           onPaste={handlePaste}
           suppressContentEditableWarning
-          className={`w-full outline-none text-[18px] md:text-[22px] leading-[1.8] font-${fontStyle} text-[var(--editor-text)] whitespace-pre-wrap transition-all duration-500 selection:bg-[var(--accent-color)] selection:text-[var(--editor-bg)]`}
+          className={`mx-auto min-h-[calc(100vh-9rem)] w-full outline-none px-0 py-2 text-[18px] md:text-[22px] leading-[1.8] font-${fontStyle} text-[var(--editor-text)] whitespace-pre-wrap transition-all duration-500 selection:bg-[var(--accent-color)] selection:text-[var(--editor-bg)]`}
           style={{
             caretColor: 'var(--accent-color)',
           }}
@@ -1033,6 +1222,130 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         onRetranslate={() => handleTranslate(selectedLanguage)}
         isTranslating={isTranslating}
       />
+
+      {showSubscribeModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSubscribeModal(false)} />
+          <div
+            className="relative w-full max-w-md rounded-[28px] border p-6 shadow-2xl"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <button
+              onClick={() => setShowSubscribeModal(false)}
+              className="absolute right-4 top-4 opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
+              style={{ color: "var(--editor-text)" }}
+              aria-label="Close subscribe modal"
+            >
+              <X size={16} />
+            </button>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-45 text-[var(--editor-text)]">Subscriber</p>
+            <h3 className="mt-3 text-2xl font-black text-[var(--editor-text)]">Get updates in your inbox</h3>
+            <p className="mt-2 text-sm leading-7 opacity-70 text-[var(--editor-text)]">
+              Join the subscriber list to get new features, improvements, and product updates.
+            </p>
+
+            {showSubscribeSuccess ? (
+              <div
+                className="mt-6 rounded-2xl px-4 py-3 text-sm font-semibold"
+                style={{
+                  background: "color-mix(in srgb, #22c55e 12%, transparent)",
+                  color: "#16a34a",
+                }}
+              >
+                Subscription request sent successfully.
+              </div>
+            ) : (
+              <>
+                <input
+                  type="email"
+                  value={subscribeEmail}
+                  onChange={(e) => {
+                    setSubscribeEmail(e.target.value);
+                    setSubscribeError("");
+                  }}
+                  placeholder="your@email.com"
+                  className="mt-6 w-full rounded-2xl border px-4 py-3 text-sm outline-none"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                  }}
+                />
+                {subscribeError && (
+                  <p className="mt-2 text-[12px] font-semibold text-red-500">{subscribeError}</p>
+                )}
+                <button
+                  onClick={handleSubscribe}
+                  disabled={isSubscribeSubmitting}
+                  className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold transition-opacity disabled:opacity-50 cursor-pointer"
+                  style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
+                >
+                  {isSubscribeSubmitting ? "Submitting..." : "Subscribe"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showUpdatesModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowUpdatesModal(false)} />
+          <div
+            className="relative w-full max-w-2xl rounded-[28px] border p-6 shadow-2xl"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <button
+              onClick={() => setShowUpdatesModal(false)}
+              className="absolute right-4 top-4 opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
+              style={{ color: "var(--editor-text)" }}
+              aria-label="Close updates modal"
+            >
+              <X size={16} />
+            </button>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-45 text-[var(--editor-text)]">Updates</p>
+            <h3 className="mt-3 text-2xl font-black text-[var(--editor-text)]">Recent product changes</h3>
+            <p className="mt-2 text-sm leading-7 opacity-70 text-[var(--editor-text)]">
+              Here you can see what features were added, when they were added, and which part of Blank Notes changed.
+            </p>
+            <div className="mt-6 max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+              {PRODUCT_UPDATES.map((item) => (
+                <div
+                  key={`${item.date}-${item.title}`}
+                  className="rounded-2xl border p-4"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                    background: "color-mix(in srgb, var(--editor-text) 3%, transparent)",
+                  }}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-45 text-[var(--editor-text)]">
+                      {item.date}
+                    </span>
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                      style={{
+                        background: "color-mix(in srgb, var(--editor-text) 6%, transparent)",
+                        color: "var(--editor-text)",
+                      }}
+                    >
+                      {item.area}
+                    </span>
+                  </div>
+                  <h4 className="mt-3 text-base font-bold text-[var(--editor-text)]">{item.title}</h4>
+                  <p className="mt-2 text-sm leading-7 opacity-70 text-[var(--editor-text)]">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         .font-draft { font-family: 'Inter', sans-serif; }

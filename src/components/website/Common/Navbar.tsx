@@ -58,6 +58,33 @@ const FONTS = [
   { id: "modern", name: "Modern Mono" },
 ];
 
+const PRODUCT_UPDATES = [
+  {
+    date: "2026-07-15",
+    area: "Published Page",
+    title: "Published page header and actions refreshed",
+    body: "Refined the published page controls, improved mobile copy behavior, and added a quicker path back to creating a new draft.",
+  },
+  {
+    date: "2026-07-14",
+    area: "Publishing",
+    title: "Live update workflow improved",
+    body: "Made it easier to update an already linked published page directly from the editor.",
+  },
+  {
+    date: "2026-07-13",
+    area: "Security",
+    title: "Protected page experience upgraded",
+    body: "Improved the unlock flow for protected pages with cleaner feedback and presentation.",
+  },
+  {
+    date: "2026-07-12",
+    area: "Editor",
+    title: "Translation and collaboration polish",
+    body: "Expanded selected-text tools and improved sync behavior for editable shared pages.",
+  },
+];
+
 // --- DATABASE HELPERS ---
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -220,6 +247,7 @@ export default function Navbar() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [showSubscribeSuccessModal, setShowSubscribeSuccessModal] = useState(false);
+  const [showUpdatesModal, setShowUpdatesModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [profileStep, setProfileStep] = useState<"email" | "otp" | "pending">("email");
   const [profileEmail, setProfileEmail] = useState("");
@@ -908,6 +936,14 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
+    const shouldCreateNewDoc = localStorage.getItem("create-new-doc-on-home") === "true";
+    if (!shouldCreateNewDoc) return;
+
+    localStorage.removeItem("create-new-doc-on-home");
+    handleCreateNewDoc();
+  }, []);
+
+  useEffect(() => {
     if (!backupEnabled) return;
 
     let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -1287,6 +1323,73 @@ export default function Navbar() {
         </div>
       )}
 
+      {showUpdatesModal && (
+        <div className="fixed inset-0 z-[216] flex items-center justify-center px-5 py-8 animate-in fade-in duration-200">
+          <button
+            className="absolute inset-0 bg-black/10 backdrop-blur-[2px] cursor-default"
+            onClick={() => setShowUpdatesModal(false)}
+            aria-label="Close updates modal"
+          />
+          <div
+            className="relative w-full max-w-[720px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
+            style={{
+              background: "var(--editor-bg)",
+              borderColor: "var(--border-color)",
+              color: "var(--editor-text)",
+            }}
+          >
+            <button
+              onClick={() => setShowUpdatesModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 opacity-45 transition-opacity hover:opacity-100 cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X size={16} strokeWidth={1.8} />
+            </button>
+            <div className="flex items-start gap-4 pr-8">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border"
+                style={{
+                  background: "color-mix(in srgb, var(--editor-text) 7%, transparent)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <Clock size={18} strokeWidth={1.8} />
+              </div>
+              <div>
+                <h2 className="text-[20px] font-semibold tracking-tight">Recent Updates</h2>
+                <p className="mt-1.5 text-[13px] leading-5 opacity-60">
+                  See what changed, when it changed, and which part of Blank Notes was updated.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+              {PRODUCT_UPDATES.map((item) => (
+                <div
+                  key={`${item.date}-${item.title}`}
+                  className="rounded-2xl border p-4"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                    borderColor: "var(--border-color)",
+                  }}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-45">{item.date}</span>
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                      style={{ background: "color-mix(in srgb, var(--editor-text) 6%, transparent)" }}
+                    >
+                      {item.area}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-[15px] font-semibold">{item.title}</h3>
+                  <p className="mt-1.5 text-[13px] leading-6 opacity-70">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSearchModal && (
         <div className="fixed inset-0 z-[212] flex items-start justify-center px-5 pt-20 sm:pt-24 animate-in fade-in duration-200">
           <button
@@ -1295,7 +1398,7 @@ export default function Navbar() {
             aria-label="Close search modal"
           />
           <div
-            className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
+            className="relative w-full max-w-[560px] overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.14)] animate-in zoom-in-95 duration-200 sm:p-6"
             style={{
               background: "var(--editor-bg)",
               borderColor: "var(--border-color)",
@@ -2129,6 +2232,9 @@ export default function Navbar() {
           <button onClick={() => handleCreateNewDoc()} className="flex md:hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer items-center justify-center" title="New document">
             <PenSquare size={18} strokeWidth={1.8} />
           </button>
+          <button onClick={openSearchModal} className="flex md:hidden text-[#666] hover:text-black dark:hover:text-white transition-colors duration-200 cursor-pointer items-center justify-center" title="Search">
+            <Search size={18} strokeWidth={1.8} />
+          </button>
         </div>
 
         <div className="flex items-center gap-6 text-[#666] md:pointer-events-auto">
@@ -2170,12 +2276,24 @@ export default function Navbar() {
                 <Ellipsis size={19} strokeWidth={1.8} />
               </button>
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-[var(--navbar-bg)] backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div
+                  className="absolute right-0 mt-2 w-56 rounded-2xl border shadow-2xl py-2 z-[60] overflow-hidden animate-in fade-in zoom-in duration-200"
+                  style={{
+                    background: "color-mix(in srgb, var(--editor-bg) 88%, rgba(255,255,255,0.82) 10%)",
+                    backdropFilter: "blur(28px) saturate(180%)",
+                    WebkitBackdropFilter: "blur(28px) saturate(180%)",
+                    borderColor: "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                  }}
+                >
                   {menuView === "main" ? (
                     <>
                       <button onClick={() => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); setShowDropdown(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3"><Maximize2 size={15} /> Full screen</div>
                         <ShortcutHint>F</ShortcutHint>
+                      </button>
+                      <button onClick={() => { const val = !showCounter; setShowCounter(val); localStorage.setItem("show-counter", String(val)); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3">{showCounter ? <EyeOff size={15} /> : <Eye size={15} />} {showCounter ? "Hide counter" : "Show counter"}</div>
+                        <ShortcutHint>C</ShortcutHint>
                       </button>
                       <button onClick={() => setMenuView("themes")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3"><Palette size={15} /> Themes</div>
@@ -2185,12 +2303,8 @@ export default function Navbar() {
                         <div className="flex items-center gap-3"><Type size={15} /> Font style</div>
                         <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                       </button>
-                      <button onClick={() => { const val = !showCounter; setShowCounter(val); localStorage.setItem("show-counter", String(val)); }} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
-                        <div className="flex items-center gap-3">{showCounter ? <EyeOff size={15} /> : <Eye size={15} />} {showCounter ? "Hide counter" : "Show counter"}</div>
-                        <ShortcutHint>C</ShortcutHint>
-                      </button>
-                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
 
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
 
                       <button onClick={() => setMenuView("more")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3"><Info size={15} /> More</div>
@@ -2215,7 +2329,7 @@ export default function Navbar() {
                     </>
                   ) : menuView === "more" ? (
                     <>
-                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
+                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] font-bold  hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
                         <ChevronLeft size={14} /> More
                       </button>
                       <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
@@ -2248,6 +2362,16 @@ export default function Navbar() {
                         className="w-full px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors cursor-pointer"
                       >
                         <BellRing size={15} /> Subscribe
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowDropdown(false);
+                          setMenuView("main");
+                          setShowUpdatesModal(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors cursor-pointer"
+                      >
+                        <Clock size={15} /> Updates
                       </button>
                     </>
                   ) : (
