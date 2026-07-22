@@ -5,12 +5,16 @@ import { io, Socket } from "socket.io-client";
 import FloatingToolbar from "./Editor/FloatingToolbar";
 import TranslationModal from "./Editor/TranslationModal";
 import FirstVisitCelebration from "@/components/website/Common/FirstVisitCelebration";
+import DrawOverlay from "@/components/website/Common/DrawOverlay";
+import { TYPING_LANGUAGES } from "@/lib/typing-test";
+import { copyCodeBlockFromTarget, createCodeBlockHtml, deleteCodeBlockFromTarget, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
+import { getTextareaSelectionRect } from "@/lib/textarea-selection";
 
 const DB_NAME = "EditorDB";
 const STORE_NAME = "Documents";
 const DB_VERSION = 4;
 
-const LANGUAGES = ["English", "Bengali", "Arabic", "Hindi", "Spanish", "French", "German"];
+const LANGUAGES = TYPING_LANGUAGES.map((language) => language.label);
 const MODELS = [
   { id: "m1", label: "Fast Mode" },
   { id: "m2", label: "Pro Mode" }
@@ -79,6 +83,11 @@ export default function Banner() {
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [resultCopied, setResultCopied] = useState(false);
   const [savedRange, setSavedRange] = useState<Range | null>(null);
+  const [selectedCodeEditor, setSelectedCodeEditor] = useState<HTMLTextAreaElement | null>(null);
+  const [drawActive, setDrawActive] = useState(false);
+  const [drawColor, setDrawColor] = useState("#ef4444");
+  const [drawMode, setDrawMode] = useState<"draw" | "erase">("draw");
+  const [drawClearSignal, setDrawClearSignal] = useState(0);
 
   const stripHtml = (html: string) => {
     if (typeof window === "undefined") return html;
@@ -166,6 +175,7 @@ export default function Banner() {
       setContent(doc.content);
       if (editorRef.current) {
         editorRef.current.innerHTML = doc.content;
+        initializeCodeBlocks(editorRef.current, true);
       }
       setActiveId(id);
       localStorage.setItem("active_doc_id", id);
@@ -200,8 +210,49 @@ export default function Banner() {
         return;
       }
 
+      const activeCodeEditor =
+        document.activeElement instanceof HTMLTextAreaElement &&
+        document.activeElement.matches("[data-code-editor]")
+          ? document.activeElement
+          : null;
+
+      if (activeCodeEditor && editorRef.current?.contains(activeCodeEditor)) {
+        const start = activeCodeEditor.selectionStart;
+        const end = activeCodeEditor.selectionEnd;
+        if (start === end) {
+          setSelectedCodeEditor(null);
+          setToolbarPos((prev) => ({ ...prev, show: false }));
+          setShowTranslateOptions(false);
+          return;
+        }
+
+        const text = activeCodeEditor.value.slice(start, end).trim();
+        if (!text) {
+          setSelectedCodeEditor(null);
+          setToolbarPos((prev) => ({ ...prev, show: false }));
+          setShowTranslateOptions(false);
+          return;
+        }
+
+        setSelectedCodeEditor(activeCodeEditor);
+        setSelectedText(text);
+        setSavedRange(null);
+
+        const rect = getTextareaSelectionRect(activeCodeEditor) || activeCodeEditor.getBoundingClientRect();
+        const isMobile = window.innerWidth < 768;
+        const toolbarTop = rect.top - 60 < 10 ? rect.bottom + 10 : rect.top - 60;
+
+        setToolbarPos({
+          top: isMobile ? 64 : toolbarTop,
+          left: isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2,
+          show: true,
+        });
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !editorRef.current?.contains(selection.anchorNode)) {
+        setSelectedCodeEditor(null);
         setToolbarPos((prev) => ({ ...prev, show: false }));
         setShowTranslateOptions(false);
         return;
@@ -209,6 +260,7 @@ export default function Banner() {
 
       const text = selection.toString().trim();
       if (text) setSelectedText(text);
+      setSelectedCodeEditor(null);
 
       const range = selection.getRangeAt(0);
       setSavedRange(range);
@@ -241,6 +293,60 @@ export default function Banner() {
     }
   }, [showTranslateOptions, selectedText, isTranslating]);
 
+  useEffect(() => {
+    const editorNode = editorRef.current;
+    if (!editorNode) return;
+
+    initializeCodeBlocks(editorNode, true);
+
+    const handleCodeActions = async (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const copyButton = target?.closest("[data-code-copy-button]") as HTMLElement | null;
+      if (copyButton && editorNode.contains(copyButton)) {
+        event.preventDefault();
+        await copyCodeBlockFromTarget(copyButton);
+        return;
+      }
+
+      const deleteButton = target?.closest("[data-code-delete-button]") as HTMLElement | null;
+      if (!deleteButton || !editorNode.contains(deleteButton)) return;
+
+      event.preventDefault();
+      if (!deleteCodeBlockFromTarget(deleteButton)) return;
+      initializeCodeBlocks(editorNode, true);
+      setContent(editorNode.innerHTML);
+      editorNode.focus();
+    };
+
+    const handleCodeInput = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const codeEditor = target?.closest("[data-code-editor]") as HTMLTextAreaElement | null;
+      if (!codeEditor) return;
+
+      const codeBlock = codeEditor.closest("[data-code-block]") as HTMLElement | null;
+      if (!codeBlock) return;
+
+      updateCodeBlockPresentation(codeBlock);
+      setContent(editorNode.innerHTML);
+    };
+
+    const handleCodeScroll = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const codeEditor = target?.closest("[data-code-editor]") as HTMLTextAreaElement | null;
+      if (!codeEditor) return;
+      syncCodeBlockScroll(codeEditor);
+    };
+
+    editorNode.addEventListener("click", handleCodeActions);
+    editorNode.addEventListener("input", handleCodeInput, true);
+    editorNode.addEventListener("scroll", handleCodeScroll, true);
+    return () => {
+      editorNode.removeEventListener("click", handleCodeActions);
+      editorNode.removeEventListener("input", handleCodeInput, true);
+      editorNode.removeEventListener("scroll", handleCodeScroll, true);
+    };
+  }, []);
+
   // Main Communication and Init
   useEffect(() => {
     const channel = new BroadcastChannel('editor-sync');
@@ -260,6 +366,16 @@ export default function Banner() {
       setSoundEnabled((e as CustomEvent).detail);
     };
     window.addEventListener("editor-sound-update", handleSoundUpdate);
+
+    const handleDrawUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<{ active: boolean; color: string; mode?: "draw" | "erase" }>).detail;
+      setDrawActive(Boolean(detail?.active));
+      if (detail?.color) setDrawColor(detail.color);
+      if (detail?.mode) setDrawMode(detail.mode);
+    };
+    const handleDrawClear = () => setDrawClearSignal((value) => value + 1);
+    window.addEventListener("editor-draw-update", handleDrawUpdate);
+    window.addEventListener("editor-draw-clear", handleDrawClear);
 
     const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (serverUrl) {
@@ -284,6 +400,8 @@ export default function Banner() {
       socketRef.current?.disconnect();
       window.removeEventListener("font-style-update", handleFontStyle);
       window.removeEventListener("editor-sound-update", handleSoundUpdate);
+      window.removeEventListener("editor-draw-update", handleDrawUpdate);
+      window.removeEventListener("editor-draw-clear", handleDrawClear);
     };
   }, []);
 
@@ -309,7 +427,11 @@ export default function Banner() {
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const text = e.clipboardData.getData("text/plain");
-    document.execCommand("insertText", false, text);
+    if (isLikelyCodeSnippet(text)) {
+      document.execCommand("insertHTML", false, createCodeBlockHtml(text));
+    } else {
+      document.execCommand("insertText", false, text);
+    }
     if (editorRef.current) {
       setContent(editorRef.current.innerHTML);
     }
@@ -317,6 +439,15 @@ export default function Banner() {
   };
 
   const handleCopy = () => {
+    if (selectedCodeEditor) {
+      const selected = selectedCodeEditor.value.slice(selectedCodeEditor.selectionStart, selectedCodeEditor.selectionEnd);
+      if (!selected) return;
+      navigator.clipboard.writeText(selected);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+
     const selection = window.getSelection();
     if (selection) {
       navigator.clipboard.writeText(selection.toString());
@@ -376,6 +507,15 @@ export default function Banner() {
   const applyTranslation = () => {
     if (!translationResult) return;
 
+    if (selectedCodeEditor) {
+      const start = selectedCodeEditor.selectionStart;
+      const end = selectedCodeEditor.selectionEnd;
+      selectedCodeEditor.setRangeText(translationResult, start, end, "end");
+      selectedCodeEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      setTranslationResult("");
+      return;
+    }
+
     if (savedRange) {
       const selection = window.getSelection();
       if (selection) {
@@ -407,6 +547,7 @@ export default function Banner() {
     >
       {/* First Visit Celebration */}
       <FirstVisitCelebration />
+      <DrawOverlay active={drawActive} color={drawColor} mode={drawMode} clearSignal={drawClearSignal} />
 
       {/* Floating Toolbar */}
       <FloatingToolbar

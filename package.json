@@ -2,11 +2,13 @@
   "name": "blanknotes.app",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": "22.x"
+    "node": "22.x",
+    "pnpm": "10.x"
   },
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev --webpack --port 3000",
     "build": "next build --webpack",
     "start": "next start -H 0.0.0.0",
     "lint": "eslint"

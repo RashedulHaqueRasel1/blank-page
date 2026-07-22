@@ -4,13 +4,17 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Shield, Edit, AlertCircle, Clock, ArrowLeft, Loader2, Check,
   Volume2, VolumeX, MoreHorizontal, Palette, Type, ChevronLeft,
-  ChevronRight, Maximize2, Eye, EyeOff, Copy, SquarePen, FileText, Info, BellRing, X
+  ChevronRight, Maximize2, Eye, EyeOff, Copy, SquarePen, FileText, Info, BellRing, X, Pencil, Eraser, Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 import { obfuscate, deobfuscate } from "@/utils/stealth";
 import FloatingToolbar from "@/components/website/PageSections/HomePage/Editor/FloatingToolbar";
 import TranslationModal from "@/components/website/PageSections/HomePage/Editor/TranslationModal";
+import DrawOverlay from "@/components/website/Common/DrawOverlay";
+import { TYPING_LANGUAGES } from "@/lib/typing-test";
+import { copyCodeBlockFromTarget, createCodeBlockHtml, deleteCodeBlockFromTarget, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
+import { getTextareaSelectionRect } from "@/lib/textarea-selection";
 
 export interface ClientPublishedPageProps {
   customUrl: string;
@@ -51,11 +55,12 @@ const FONTS = [
   { id: "modern", name: "Modern Mono" },
 ];
 
-const LANGUAGES = ["English", "Bengali", "Arabic", "Hindi", "Spanish", "French", "German"];
+const LANGUAGES = TYPING_LANGUAGES.map((language) => language.label);
 const MODELS = [
   { id: "m1", label: "Fast Mode" },
   { id: "m2", label: "Pro Mode" }
 ];
+const DRAW_COLORS = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#111827"];
 const API_SECRET = "blank_page_secret_token_2026_secure";
 const PRODUCT_UPDATES = [
   {
@@ -167,6 +172,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [resultCopied, setResultCopied] = useState(false);
   const [savedRange, setSavedRange] = useState<Range | null>(null);
+  const [selectedCodeEditor, setSelectedCodeEditor] = useState<HTMLTextAreaElement | null>(null);
 
   // Settings Menu Dropdown States
   const [showDropdown, setShowDropdown] = useState(false);
@@ -178,6 +184,32 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const [isSubscribeSubmitting, setIsSubscribeSubmitting] = useState(false);
   const [showSubscribeSuccess, setShowSubscribeSuccess] = useState(false);
   const [showUpdatesModal, setShowUpdatesModal] = useState(false);
+  const [drawActive, setDrawActive] = useState(false);
+  const [drawColor, setDrawColor] = useState("#ef4444");
+  const [drawMode, setDrawMode] = useState<"draw" | "erase">("draw");
+  const [drawClearSignal, setDrawClearSignal] = useState(0);
+
+  const toggleDrawColor = (nextColor: string) => {
+    if (drawActive && drawMode === "draw" && drawColor === nextColor) {
+      setDrawActive(false);
+      setDrawMode("draw");
+      return;
+    }
+
+    setDrawColor(nextColor);
+    setDrawMode("draw");
+    setDrawActive(true);
+  };
+
+  const toggleEraserMode = () => {
+    if (drawActive && drawMode === "erase") {
+      setDrawActive(false);
+      return;
+    }
+
+    setDrawMode("erase");
+    setDrawActive(true);
+  };
 
   const editorRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -444,6 +476,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   useEffect(() => {
     if (editorRef.current && !hasLoadedRef.current && content && !isLocked) {
       editorRef.current.innerHTML = content;
+      initializeCodeBlocks(editorRef.current, pageData?.isEditable ?? false);
       hasLoadedRef.current = true;
     }
   }, [content, isLocked]);
@@ -539,7 +572,11 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const text = e.clipboardData.getData("text/plain");
-    document.execCommand("insertText", false, text);
+    if (isLikelyCodeSnippet(text)) {
+      document.execCommand("insertHTML", false, createCodeBlockHtml(text));
+    } else {
+      document.execCommand("insertText", false, text);
+    }
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
@@ -563,8 +600,49 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
         return;
       }
 
+      const activeCodeEditor =
+        document.activeElement instanceof HTMLTextAreaElement &&
+        document.activeElement.matches("[data-code-editor]")
+          ? document.activeElement
+          : null;
+
+      if (activeCodeEditor && editorRef.current?.contains(activeCodeEditor)) {
+        const start = activeCodeEditor.selectionStart;
+        const end = activeCodeEditor.selectionEnd;
+        if (start === end) {
+          setSelectedCodeEditor(null);
+          setToolbarPos((prev) => ({ ...prev, show: false }));
+          setShowTranslateOptions(false);
+          return;
+        }
+
+        const text = activeCodeEditor.value.slice(start, end).trim();
+        if (!text) {
+          setSelectedCodeEditor(null);
+          setToolbarPos((prev) => ({ ...prev, show: false }));
+          setShowTranslateOptions(false);
+          return;
+        }
+
+        setSelectedCodeEditor(activeCodeEditor);
+        setSelectedText(text);
+        setSavedRange(null);
+
+        const rect = getTextareaSelectionRect(activeCodeEditor) || activeCodeEditor.getBoundingClientRect();
+        const isMobile = window.innerWidth < 768;
+        const toolbarTop = rect.top - 60 < 10 ? rect.bottom + 10 : rect.top - 60;
+
+        setToolbarPos({
+          top: isMobile ? 64 : toolbarTop,
+          left: isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2,
+          show: true
+        });
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !editorRef.current?.contains(selection.anchorNode)) {
+        setSelectedCodeEditor(null);
         setToolbarPos((prev) => ({ ...prev, show: false }));
         setShowTranslateOptions(false);
         return;
@@ -572,6 +650,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
       const text = selection.toString().trim();
       if (text) setSelectedText(text);
+      setSelectedCodeEditor(null);
 
       const range = selection.getRangeAt(0);
       setSavedRange(range);
@@ -625,7 +704,76 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     }
   }, [showTranslateOptions, selectedText, isTranslating]);
 
+  useEffect(() => {
+    const editorNode = editorRef.current;
+    if (!editorNode) return;
+
+    initializeCodeBlocks(editorNode, pageData?.isEditable ?? false);
+
+    const handleCodeActions = async (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const copyButton = target?.closest("[data-code-copy-button]") as HTMLElement | null;
+      if (copyButton && editorNode.contains(copyButton)) {
+        event.preventDefault();
+        await copyCodeBlockFromTarget(copyButton);
+        return;
+      }
+
+      const deleteButton = target?.closest("[data-code-delete-button]") as HTMLElement | null;
+      if (!deleteButton || !editorNode.contains(deleteButton) || !pageData?.isEditable) return;
+
+      event.preventDefault();
+      if (!deleteCodeBlockFromTarget(deleteButton)) return;
+      initializeCodeBlocks(editorNode, true);
+      const nextContent = editorNode.innerHTML;
+      setContent(nextContent);
+      sendCollaborativeEdit(nextContent);
+      triggerAutosave(nextContent);
+      editorNode.focus();
+    };
+
+    const handleCodeInput = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const codeEditor = target?.closest("[data-code-editor]") as HTMLTextAreaElement | null;
+      if (!codeEditor) return;
+
+      const codeBlock = codeEditor.closest("[data-code-block]") as HTMLElement | null;
+      if (!codeBlock) return;
+
+      updateCodeBlockPresentation(codeBlock);
+      const nextContent = editorNode.innerHTML;
+      setContent(nextContent);
+      sendCollaborativeEdit(nextContent);
+      triggerAutosave(nextContent);
+    };
+
+    const handleCodeScroll = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const codeEditor = target?.closest("[data-code-editor]") as HTMLTextAreaElement | null;
+      if (!codeEditor) return;
+      syncCodeBlockScroll(codeEditor);
+    };
+
+    editorNode.addEventListener("click", handleCodeActions);
+    editorNode.addEventListener("input", handleCodeInput, true);
+    editorNode.addEventListener("scroll", handleCodeScroll, true);
+    return () => {
+      editorNode.removeEventListener("click", handleCodeActions);
+      editorNode.removeEventListener("input", handleCodeInput, true);
+      editorNode.removeEventListener("scroll", handleCodeScroll, true);
+    };
+  }, [isLocked, pageData?.isEditable]);
+
   const handleCopy = () => {
+    if (selectedCodeEditor) {
+      const selected = selectedCodeEditor.value.slice(selectedCodeEditor.selectionStart, selectedCodeEditor.selectionEnd);
+      if (!selected) return;
+      navigator.clipboard.writeText(selected);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+
     const selection = window.getSelection();
     if (selection) {
       navigator.clipboard.writeText(selection.toString());
@@ -728,6 +876,15 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
   const applyTranslation = () => {
     if (!translationResult || !pageData?.isEditable) return;
+
+    if (selectedCodeEditor) {
+      const start = selectedCodeEditor.selectionStart;
+      const end = selectedCodeEditor.selectionEnd;
+      selectedCodeEditor.setRangeText(translationResult, start, end, "end");
+      selectedCodeEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      setTranslationResult("");
+      return;
+    }
 
     if (savedRange) {
       const selection = window.getSelection();
@@ -1054,6 +1211,13 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                       <span className="flex items-center gap-3"><Type size={15} /> Font style</span>
                       <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                     </button>
+                    <button
+                      onClick={() => setMenuView("draw")}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Pencil size={15} /> Draw</span>
+                      <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
+                    </button>
                     <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
                     <button
                       onClick={() => setMenuView("more")}
@@ -1085,6 +1249,58 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                         {theme === t.id && <Check size={14} className="text-[var(--accent-color)]" />}
                       </button>
                     ))}
+                  </>
+                ) : menuView === "draw" ? (
+                  <>
+                    <button
+                      onClick={() => setMenuView("main")}
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer text-[var(--editor-text)]"
+                    >
+                      <ChevronLeft size={14} /> Draw
+                    </button>
+                    <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                    <button
+                      onClick={() => setDrawActive((value) => !value)}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Pencil size={15} /> {drawActive ? "Stop drawing" : "Start drawing"}</span>
+                      {drawActive && drawMode === "draw" && <Check size={14} className="text-[var(--accent-color)]" />}
+                    </button>
+                    <div className="px-4 pt-2 pb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-35 text-[var(--editor-text)]">Color</span>
+                    </div>
+                    <div className="px-4 pb-2 flex items-center gap-2">
+                      {DRAW_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => toggleDrawColor(color)}
+                          className="h-6 w-6 rounded-full border transition-transform hover:scale-110 cursor-pointer"
+                          style={{
+                            backgroundColor: color,
+                            borderColor: drawColor === color ? "var(--accent-color)" : "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                            boxShadow: drawColor === color ? "0 0 0 2px color-mix(in srgb, var(--accent-color) 18%, transparent)" : "none",
+                          }}
+                          title={`Set draw color ${color}`}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={toggleEraserMode}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Eraser size={15} /> Eraser mode</span>
+                      {drawActive && drawMode === "erase" && <Check size={14} className="text-[var(--accent-color)]" />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDrawClearSignal((value) => value + 1);
+                        setShowDropdown(false);
+                        setMenuView("main");
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={15} /> Clear drawings
+                    </button>
                   </>
                 ) : menuView === "more" ? (
                   <>
@@ -1165,6 +1381,7 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
       </header>
 
       {/* Floating Toolbar */}
+      <DrawOverlay active={drawActive} color={drawColor} mode={drawMode} clearSignal={drawClearSignal} />
       <FloatingToolbar
         show={toolbarPos.show}
         top={toolbarPos.top}

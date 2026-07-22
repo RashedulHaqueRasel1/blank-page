@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Menu, Ellipsis, Type, Maximize2, Palette,
@@ -10,10 +11,15 @@ import {
   CloudUpload,
   SquareChevronRight,
   SquarePen,
+  CheckSquare,
   Info,
   FileExclamationPoint,
   BellRing,
-  Search
+  Search,
+  Pencil,
+  Eraser,
+  Square
+  , Keyboard
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -57,6 +63,8 @@ const FONTS = [
   { id: "classic", name: "Classic Serif" },
   { id: "modern", name: "Modern Mono" },
 ];
+
+const DRAW_COLORS = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#111827"];
 
 const PRODUCT_UPDATES = [
   {
@@ -236,6 +244,10 @@ const ShortcutHint = ({ children }: { children: string }) => (
 );
 
 export default function Navbar() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const isHomeRoute = pathname === "/";
+  const isTypingRoute = pathname === "/typing-test";
   const [theme, setTheme] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("app-theme") || "light" : "light"));
   const [showCounter, setShowCounter] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("show-counter") !== "false" : true));
   const [currentFont, setCurrentFont] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("font-style") || "draft" : "draft"));
@@ -267,12 +279,20 @@ export default function Navbar() {
   const [documents, setDocuments] = useState<EditorDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [menuView, setMenuView] = useState("main");
+  const [drawEnabled, setDrawEnabled] = useState(false);
+  const [drawColor, setDrawColor] = useState("#ef4444");
+  const [drawMode, setDrawMode] = useState<"draw" | "erase">("draw");
+  const [showDrawPalette, setShowDrawPalette] = useState(false);
+  const [sidebarSelectionMode, setSidebarSelectionMode] = useState(false);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
+  const [selectedPublishedUrls, setSelectedPublishedUrls] = useState<string[]>([]);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean; id: string; currentTitle: string; isPublished?: boolean }>({ isOpen: false, id: "", currentTitle: "", isPublished: false });
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string }>({ isOpen: false, id: "" });
   const [pubActionsModal, setPubActionsModal] = useState<{ isOpen: boolean; page: PublishedPage | null; top: number; left: number }>({ isOpen: false, page: null, top: 0, left: 0 });
   const [newTitleValue, setNewTitleValue] = useState("");
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "info" }>({ show: false, message: "", type: "success" });
+  const [bulkDeleteModal, setBulkDeleteModal] = useState<{ isOpen: boolean; type: "local" | "published"; ids: string[] }>({ isOpen: false, type: "local", ids: [] });
 
   // Publish Modal States
   const [isPublishOpen, setIsPublishOpen] = useState(false);
@@ -485,6 +505,75 @@ export default function Navbar() {
     fetchPublishedPages();
   };
 
+  const updateDrawState = (
+    nextEnabled: boolean,
+    nextColor = drawColor,
+    nextMode: "draw" | "erase" = drawMode
+  ) => {
+    setDrawEnabled(nextEnabled);
+    setDrawColor(nextColor);
+    setDrawMode(nextMode);
+    window.dispatchEvent(
+      new CustomEvent("editor-draw-update", {
+        detail: { active: nextEnabled, color: nextColor, mode: nextMode },
+      })
+    );
+  };
+
+  const clearDrawings = () => {
+    window.dispatchEvent(new CustomEvent("editor-draw-clear"));
+  };
+
+  const resetSidebarSelection = () => {
+    setSidebarSelectionMode(false);
+    setSelectedDraftIds([]);
+    setSelectedPublishedUrls([]);
+  };
+
+  const toggleDraftSelection = (id: string) => {
+    setSelectedDraftIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  };
+
+  const togglePublishedSelection = (customUrl: string) => {
+    setSelectedPublishedUrls((current) =>
+      current.includes(customUrl) ? current.filter((item) => item !== customUrl) : [...current, customUrl]
+    );
+  };
+
+  const openBulkDeleteModal = () => {
+    const ids = sidebarTab === "local" ? selectedDraftIds : selectedPublishedUrls;
+    if (ids.length === 0) return;
+    setBulkDeleteModal({ isOpen: true, type: sidebarTab, ids });
+  };
+
+  const getSidebarButtonStyle = (active = false) => ({
+    color: "var(--editor-text)",
+    background: active ? "color-mix(in srgb, var(--editor-text) 8%, transparent)" : "transparent",
+    opacity: active ? 1 : 0.75,
+  });
+
+  const toggleDrawColor = (nextColor: string) => {
+    setShowDrawPalette(true);
+    if (drawEnabled && drawMode === "draw" && drawColor === nextColor) {
+      updateDrawState(false, nextColor, "draw");
+      return;
+    }
+
+    updateDrawState(true, nextColor, "draw");
+  };
+
+  const toggleEraserMode = () => {
+    setShowDrawPalette(true);
+    if (drawEnabled && drawMode === "erase") {
+      updateDrawState(false, drawColor, "erase");
+      return;
+    }
+
+    updateDrawState(true, drawColor, "erase");
+  };
+
   const handleTogglePinPublished = async (e: React.MouseEvent, customUrl: string, currentPinned: boolean) => {
     e.stopPropagation();
     try {
@@ -639,6 +728,11 @@ export default function Navbar() {
       fetchPublishedPages();
     }
   }, [showSidebar, sidebarTab]);
+
+  useEffect(() => {
+    setSelectedDraftIds([]);
+    setSelectedPublishedUrls([]);
+  }, [sidebarTab]);
 
   const handleOpenPublishModal = async () => {
     if (!activeDocId) return;
@@ -966,18 +1060,19 @@ export default function Navbar() {
     setDocuments(docs);
     const savedActiveId = localStorage.getItem("active_doc_id");
     if (docs.length === 0) {
-      handleCreateNewDoc("First Draft");
+      handleCreateNewDoc("First Draft", false);
     } else if (!savedActiveId || !docs.find(d => d.id === savedActiveId)) {
-      handleSwitchDoc(docs[0].id, keepSidebarOpen);
+      setActiveDocId(docs[0].id);
+      localStorage.setItem("active_doc_id", docs[0].id);
     } else {
       setActiveDocId(savedActiveId);
     }
   };
 
-  const handleCreateNewDoc = async (title = "Untitled") => {
+  const handleCreateNewDoc = async (title = "Untitled", navigateToEditor = true) => {
     try {
       const newDoc = await createDocInDB(title);
-      handleSwitchDoc(newDoc.id);
+      handleSwitchDoc(newDoc.id, false, navigateToEditor);
       if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
     } catch (err) { console.error(err); }
   };
@@ -991,6 +1086,40 @@ export default function Navbar() {
       if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
       showToast("Document deleted", "info");
     } catch (err) { console.error(err); }
+  };
+
+  const executeBulkDelete = async () => {
+    if (!bulkDeleteModal.ids.length) return;
+
+    try {
+      if (bulkDeleteModal.type === "local") {
+        await Promise.all(bulkDeleteModal.ids.map((id) => removeDocFromDB(id)));
+        if (bulkDeleteModal.ids.includes(activeDocId || "")) {
+          localStorage.removeItem("active_doc_id");
+        }
+        await refreshDocs(true);
+        if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
+        showToast(`${bulkDeleteModal.ids.length} draft${bulkDeleteModal.ids.length > 1 ? "s" : ""} deleted`, "info");
+      } else {
+        await Promise.all(
+          bulkDeleteModal.ids.map((customUrl) =>
+            fetch(`/api/pages/${customUrl}`, { method: "DELETE" })
+          )
+        );
+        await fetchPublishedPages();
+        if (bulkDeleteModal.ids.includes(activeDocPublishedUrl || "")) {
+          setActiveDocPublishedUrl(null);
+        }
+        showToast(`${bulkDeleteModal.ids.length} published page${bulkDeleteModal.ids.length > 1 ? "s" : ""} deleted`, "info");
+      }
+
+      resetSidebarSelection();
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to delete selected items", "info");
+    } finally {
+      setBulkDeleteModal({ isOpen: false, type: "local", ids: [] });
+    }
   };
 
   const handleTogglePin = async (id: string, currentPinned: boolean) => {
@@ -1039,11 +1168,19 @@ export default function Navbar() {
     }
   };
 
-  const handleSwitchDoc = (id: string, keepSidebarOpen = false) => {
+  const handleSwitchDoc = (id: string, keepSidebarOpen = false, navigateToEditor = true) => {
+    if (sidebarSelectionMode) {
+      toggleDraftSelection(id);
+      return;
+    }
     setActiveDocId(id);
     localStorage.setItem("active_doc_id", id);
     syncChannel.current?.postMessage({ type: 'SWITCH_DOC', id });
     if (!keepSidebarOpen) setShowSidebar(false);
+    if (navigateToEditor && pathname !== "/") {
+      router.push("/");
+      return;
+    }
     refreshDocs(keepSidebarOpen);
   };
 
@@ -1124,6 +1261,7 @@ export default function Navbar() {
       }
       if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node) && showSidebar) {
         if (!(event.target as HTMLElement).closest('.doc-menu-container')) {
+          resetSidebarSelection();
           setShowSidebar(false);
         }
       }
@@ -1145,7 +1283,13 @@ export default function Navbar() {
       const key = e.key.toLowerCase();
       if (key === "n" && e.shiftKey) { e.preventDefault(); handleCreateNewDoc(); }
       if (key === "m" && e.shiftKey) { e.preventDefault(); setShowSidebar(true); refreshDocs(true); }
-      if (key === "escape") { setShowDropdown(false); setShowSidebar(false); setMenuView("main"); setActiveMenuId(null); }
+      if (key === "escape") {
+        setShowDropdown(false);
+        setShowSidebar(false);
+        resetSidebarSelection();
+        setMenuView("main");
+        setActiveMenuId(null);
+      }
     };
 
     window.addEventListener("word-count-update", handleWordCount);
@@ -1169,6 +1313,12 @@ export default function Navbar() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [showSidebar, theme, renameModal]);
+
+  useEffect(() => {
+    if (!showSidebar) {
+      resetSidebarSelection();
+    }
+  }, [showSidebar]);
 
   return (
     <>
@@ -1809,7 +1959,7 @@ export default function Navbar() {
           <button
             onClick={() => { setShowSidebar(true); refreshDocs(true); }}
             className="group relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:opacity-90 cursor-pointer"
-            style={{ background: "color-mix(in srgb, var(--editor-text) 8%, transparent)" }}
+            style={getSidebarButtonStyle(isHomeRoute && showSidebar && sidebarTab === "local")}
             aria-label="Open sidebar"
           >
             <SquareChevronRight size={18} strokeWidth={1.7} />
@@ -1837,7 +1987,7 @@ export default function Navbar() {
           <button
             onClick={openSearchModal}
             className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
-            style={{ color: "var(--editor-text)" }}
+            style={getSidebarButtonStyle(showSearchModal)}
             aria-label="Search"
           >
             <Search size={17} strokeWidth={1.8} />
@@ -1848,10 +1998,97 @@ export default function Navbar() {
               Search
             </span>
           </button>
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => {
+                setShowDrawPalette(true);
+                updateDrawState(!drawEnabled, drawColor, drawMode);
+              }}
+              className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+              style={{
+                ...getSidebarButtonStyle(drawEnabled || showDrawPalette),
+                color: drawEnabled && drawMode === "draw" ? drawColor : "var(--editor-text)",
+              }}
+              aria-label={drawEnabled ? "Stop drawing" : "Start drawing"}
+            >
+              <Pencil size={17} strokeWidth={1.8} />
+              <span
+                className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+                style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+              >
+                {drawEnabled ? "Stop drawing" : "Start drawing"}
+              </span>
+            </button>
+            {showDrawPalette && (
+              <div
+                className="flex flex-col items-center gap-2 rounded-2xl border px-2 py-2 shadow-xl"
+                style={{
+                  background: "color-mix(in srgb, var(--editor-bg) 88%, rgba(255,255,255,0.82) 10%)",
+                  borderColor: "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                }}
+              >
+                {DRAW_COLORS.map((color) => (
+                  <button
+                    key={`sidebar-draw-${color}`}
+                    onClick={() => toggleDrawColor(color)}
+                    className="h-5 w-5 rounded-full border transition-transform hover:scale-110 cursor-pointer"
+                    style={{
+                      backgroundColor: color,
+                      borderColor: drawColor === color ? "var(--accent-color)" : "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                      boxShadow: drawColor === color ? "0 0 0 2px color-mix(in srgb, var(--accent-color) 18%, transparent)" : "none",
+                    }}
+                    title={`Use ${color} for drawing`}
+                    aria-label={`Use ${color} for drawing`}
+                  />
+                ))}
+                <button
+                  onClick={toggleEraserMode}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+                  style={{
+                    color: drawMode === "erase" ? "#dc2626" : "var(--editor-text)",
+                    borderColor: drawMode === "erase" ? "#dc2626" : "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                    background: drawMode === "erase" ? "color-mix(in srgb, #dc2626 10%, transparent)" : "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                  }}
+                  title="Use eraser"
+                  aria-label="Use eraser"
+                >
+                  <Eraser size={14} strokeWidth={1.8} />
+                </button>
+                <button
+                  onClick={clearDrawings}
+                  className="mt-1 flex h-7 w-7 items-center justify-center rounded-full border opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+                  style={{
+                    color: "var(--editor-text)",
+                    borderColor: "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                  }}
+                  title="Clear drawings"
+                  aria-label="Clear drawings"
+                >
+                  <Trash2 size={14} strokeWidth={1.8} />
+                </button>
+                <button
+                  onClick={() => setShowDrawPalette(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border opacity-75 transition-colors hover:opacity-100 cursor-pointer"
+                  style={{
+                    color: "var(--editor-text)",
+                    borderColor: "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                    background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
+                  }}
+                  title="Close draw tools"
+                  aria-label="Close draw tools"
+                >
+                  <X size={14} strokeWidth={1.8} />
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={handleOpenPublishModal}
             className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
-            style={{ color: "var(--editor-text)" }}
+            style={getSidebarButtonStyle(isPublishOpen)}
             aria-label="Publish"
           >
             <CloudUpload size={19} strokeWidth={1.8} />
@@ -1865,7 +2102,7 @@ export default function Navbar() {
           <button
             onClick={() => { setSidebarTab("published"); setShowSidebar(true); fetchPublishedPages(); }}
             className="group relative flex h-8 w-8 items-center justify-center rounded-lg opacity-75 transition-colors hover:opacity-100 cursor-pointer"
-            style={{ color: "var(--editor-text)" }}
+            style={getSidebarButtonStyle(isHomeRoute && showSidebar && sidebarTab === "published")}
             aria-label="Published pages"
           >
             <Send size={18} strokeWidth={1.7} />
@@ -1876,14 +2113,29 @@ export default function Navbar() {
               Published pages
             </span>
           </button>
+          <Link
+            href="/typing-test"
+            className="group relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-100"
+            style={getSidebarButtonStyle(isTypingRoute)}
+            aria-label="Typing test"
+          >
+            <Keyboard size={17} strokeWidth={1.8} />
+            <span
+              className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-md border border-[var(--border-color)] px-3 py-2 text-[12px] font-semibold opacity-0 shadow-xl backdrop-blur-xl transition-opacity group-hover:opacity-100 whitespace-nowrap"
+              style={{ background: "var(--navbar-bg)", color: "var(--editor-text)" }}
+            >
+              Typing test
+            </span>
+          </Link>
         </div>
         <button
           onClick={openProfileBackupModal}
           className="group relative mt-auto mb-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:opacity-90 cursor-pointer"
           style={{
-            background: "color-mix(in srgb, var(--editor-text) 8%, transparent)",
             color: "var(--editor-text)",
+            background: showProfileModal ? "color-mix(in srgb, var(--editor-text) 8%, transparent)" : "transparent",
             border: "1px solid var(--border-color)",
+            opacity: showProfileModal ? 1 : 0.75,
           }}
           aria-label="Profile"
         >
@@ -1942,6 +2194,43 @@ export default function Navbar() {
         </div>
       )}
 
+      {bulkDeleteModal.isOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-[205] animate-in fade-in duration-300">
+          <div
+            className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xl"
+            onClick={() => setBulkDeleteModal({ isOpen: false, type: "local", ids: [] })}
+          />
+          <div
+            className="relative w-full max-w-[340px] rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200"
+            style={{ background: "var(--editor-bg)", border: "1px solid var(--border-color)" }}
+          >
+            <h3 className="text-[14px] font-bold text-red-500 mb-4 uppercase tracking-widest">
+              Bulk Delete
+            </h3>
+            <p className="text-[13px] mb-6 opacity-70" style={{ color: "var(--editor-text)" }}>
+              {bulkDeleteModal.type === "local"
+                ? `Delete ${bulkDeleteModal.ids.length} selected draft${bulkDeleteModal.ids.length > 1 ? "s" : ""} at once?`
+                : `Delete ${bulkDeleteModal.ids.length} selected published page${bulkDeleteModal.ids.length > 1 ? "s" : ""} at once?`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setBulkDeleteModal({ isOpen: false, type: "local", ids: [] })}
+                className="flex-1 py-3 text-[13px] font-medium rounded-xl cursor-pointer transition-colors hover:opacity-80"
+                style={{ border: "1px solid var(--border-color)", color: "var(--editor-text)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkDelete}
+                className="flex-1 py-3 text-[13px] font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer text-white bg-red-500 hover:bg-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Published Page Actions Dropdown (fixed-position to avoid sidebar overflow clipping) */}
       {(() => {
         const page = pubActionsModal.page;
@@ -1978,7 +2267,7 @@ export default function Navbar() {
         <div className="flex flex-col h-full p-6">
           <div className="flex items-center justify-between mb-10">
             <span className="text-[14px] font-bold tracking-widest uppercase opacity-40" style={{ color: "var(--editor-text)" }}>Blank Notes</span>
-            <button onClick={() => setShowSidebar(false)} className="transition-colors cursor-pointer opacity-50 hover:opacity-100" style={{ color: "var(--editor-text)" }}>
+            <button onClick={() => { resetSidebarSelection(); setShowSidebar(false); }} className="transition-colors cursor-pointer opacity-50 hover:opacity-100" style={{ color: "var(--editor-text)" }}>
               <X size={20} strokeWidth={1.5} />
             </button>
           </div>
@@ -1986,7 +2275,7 @@ export default function Navbar() {
           {/* Tab Selector */}
           <div className="flex p-1 rounded-xl mb-6" style={{ background: "color-mix(in srgb, var(--editor-text) 5%, transparent)", border: "1px solid var(--border-color)" }}>
             <button
-              onClick={() => setSidebarTab("local")}
+              onClick={() => { setSidebarTab("local"); setSidebarSelectionMode(false); }}
               className="flex-1 py-2 text-[12px] font-bold rounded-lg transition-all cursor-pointer text-center"
               style={{
                 background: sidebarTab === "local" ? "var(--editor-text)" : "transparent",
@@ -1996,7 +2285,7 @@ export default function Navbar() {
               Local Drafts
             </button>
             <button
-              onClick={() => setSidebarTab("published")}
+              onClick={() => { setSidebarTab("published"); setSidebarSelectionMode(false); }}
               className="flex-1 py-2 text-[12px] font-bold rounded-lg transition-all cursor-pointer text-center"
               style={{
                 background: sidebarTab === "published" ? "var(--editor-text)" : "transparent",
@@ -2027,6 +2316,39 @@ export default function Navbar() {
                 </button>
               </div>
 
+              <div className="mb-4 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (sidebarSelectionMode) resetSidebarSelection();
+                    else setSidebarSelectionMode(true);
+                  }}
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold transition-all cursor-pointer"
+                  style={{
+                    background: sidebarSelectionMode ? "color-mix(in srgb, var(--editor-text) 8%, transparent)" : "transparent",
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                  }}
+                >
+                  {sidebarSelectionMode ? <CheckSquare size={14} /> : <Square size={14} />}
+                  {sidebarSelectionMode ? "Selection on" : "Select"}
+                </button>
+                {sidebarSelectionMode && (
+                  <button
+                    onClick={openBulkDeleteModal}
+                    disabled={selectedDraftIds.length === 0}
+                    className="flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                    style={{
+                      background: "color-mix(in srgb, #ef4444 8%, transparent)",
+                      borderColor: "color-mix(in srgb, #ef4444 24%, transparent)",
+                      color: "#ef4444",
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    Delete {selectedDraftIds.length > 0 ? `(${selectedDraftIds.length})` : ""}
+                  </button>
+                )}
+              </div>
+
               <div
                 className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1 pr-2"
                 style={{ overscrollBehavior: 'contain' }}
@@ -2048,11 +2370,20 @@ export default function Navbar() {
                       onClick={() => handleSwitchDoc(doc.id)}
                       className="flex items-start gap-3 px-4 py-3 rounded-xl text-[14px] transition-all text-left flex-1 min-w-0 pr-12 cursor-pointer"
                       style={{
-                        background: activeDocId === doc.id ? "color-mix(in srgb, var(--editor-text) 6%, transparent)" : "transparent",
+                        background: selectedDraftIds.includes(doc.id)
+                          ? "color-mix(in srgb, var(--editor-text) 8%, transparent)"
+                          : activeDocId === doc.id
+                            ? "color-mix(in srgb, var(--editor-text) 6%, transparent)"
+                            : "transparent",
                         color: activeDocId === doc.id ? "var(--editor-text)" : "color-mix(in srgb, var(--editor-text) 50%, transparent)",
                         fontWeight: activeDocId === doc.id ? 500 : 400,
                       }}
                     >
+                      {sidebarSelectionMode && (
+                        <span className="mt-0.5 shrink-0" style={{ color: "var(--editor-text)" }}>
+                          {selectedDraftIds.includes(doc.id) ? <CheckSquare size={15} /> : <Square size={15} />}
+                        </span>
+                      )}
                       <FileText size={16} className="shrink-0 mt-0.5" style={{ opacity: activeDocId === doc.id ? 1 : 0.35 }} />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2">
@@ -2068,7 +2399,7 @@ export default function Navbar() {
                       )}
                     </button>
 
-                    <div className="absolute right-2 flex items-center gap-1">
+                    {!sidebarSelectionMode && <div className="absolute right-2 flex items-center gap-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === doc.id ? null : doc.id); }}
                         className={`p-2 transition-all rounded-lg cursor-pointer opacity-40 hover:opacity-100 ${activeMenuId === doc.id ? 'opacity-100' : ''}`}
@@ -2091,7 +2422,7 @@ export default function Navbar() {
                           </button>
                         </div>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 ))}
               </div>
@@ -2117,6 +2448,39 @@ export default function Navbar() {
                 </button>
               </div>
 
+              <div className="mb-4 flex items-center gap-2 px-4">
+                <button
+                  onClick={() => {
+                    if (sidebarSelectionMode) resetSidebarSelection();
+                    else setSidebarSelectionMode(true);
+                  }}
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold transition-all cursor-pointer"
+                  style={{
+                    background: sidebarSelectionMode ? "color-mix(in srgb, var(--editor-text) 8%, transparent)" : "transparent",
+                    borderColor: "var(--border-color)",
+                    color: "var(--editor-text)",
+                  }}
+                >
+                  {sidebarSelectionMode ? <CheckSquare size={14} /> : <Square size={14} />}
+                  {sidebarSelectionMode ? "Selection on" : "Select"}
+                </button>
+                {sidebarSelectionMode && (
+                  <button
+                    onClick={openBulkDeleteModal}
+                    disabled={selectedPublishedUrls.length === 0}
+                    className="flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                    style={{
+                      background: "color-mix(in srgb, #ef4444 8%, transparent)",
+                      borderColor: "color-mix(in srgb, #ef4444 24%, transparent)",
+                      color: "#ef4444",
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    Delete {selectedPublishedUrls.length > 0 ? `(${selectedPublishedUrls.length})` : ""}
+                  </button>
+                )}
+              </div>
+
               {isPublishedLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 opacity-40">
                   <span className="w-5 h-5 border-2 border-[var(--editor-text)] border-t-transparent rounded-full animate-spin" />
@@ -2138,12 +2502,27 @@ export default function Navbar() {
                 filteredPublishedPages.map((page) => (
                   <div key={page.customUrl} className="group relative flex items-center mb-1 doc-menu-container">
                     <button
-                      onClick={(e) => { e.preventDefault(); handleImportPublishedPage(e, page); }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (sidebarSelectionMode) {
+                          togglePublishedSelection(page.customUrl);
+                          return;
+                        }
+                        handleImportPublishedPage(e, page);
+                      }}
                       className="flex items-start gap-3 px-4 py-3 rounded-xl text-[14px] transition-all text-left flex-1 min-w-0 pr-20 cursor-pointer hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
                       style={{
+                        background: selectedPublishedUrls.includes(page.customUrl)
+                          ? "color-mix(in srgb, var(--editor-text) 8%, transparent)"
+                          : "transparent",
                         color: "color-mix(in srgb, var(--editor-text) 80%, transparent)",
                       }}
                     >
+                      {sidebarSelectionMode && (
+                        <span className="mt-0.5 shrink-0" style={{ color: "var(--editor-text)" }}>
+                          {selectedPublishedUrls.includes(page.customUrl) ? <CheckSquare size={15} /> : <Square size={15} />}
+                        </span>
+                      )}
                       <Globe size={16} className="shrink-0 mt-0.5 text-indigo-500 opacity-80" />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2">
@@ -2170,7 +2549,7 @@ export default function Navbar() {
                       </div>
                     </button>
 
-                    <div className="absolute right-2 flex items-center gap-1">
+                    {!sidebarSelectionMode && <div className="absolute right-2 flex items-center gap-1">
                       {/* View live page icon - appears on hover */}
                       <a
                         href={`/${page.customUrl}`}
@@ -2196,7 +2575,7 @@ export default function Navbar() {
                       >
                         <MoreVertical size={14} />
                       </button>
-                    </div>
+                    </div>}
                   </div>
                 ))
               )}
@@ -2303,6 +2682,10 @@ export default function Navbar() {
                         <div className="flex items-center gap-3"><Type size={15} /> Font style</div>
                         <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                       </button>
+                      <button onClick={() => setMenuView("draw")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3"><Pencil size={15} /> Draw</div>
+                        <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
+                      </button>
 
                       <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
 
@@ -2327,12 +2710,71 @@ export default function Navbar() {
                         </button>
                       ))}
                     </>
+                  ) : menuView === "draw" ? (
+                    <>
+                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
+                        <ChevronLeft size={14} /> Draw
+                      </button>
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      <button
+                        onClick={() => updateDrawState(!drawEnabled, drawColor, drawMode)}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <span className="flex items-center gap-3"><Pencil size={15} /> {drawEnabled ? "Stop drawing" : "Start drawing"}</span>
+                        {drawEnabled && drawMode === "draw" && <Check size={14} className="text-[var(--accent-color)]" />}
+                      </button>
+                      <div className="px-4 pt-2 pb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-35 text-[var(--editor-text)]">Color</span>
+                      </div>
+                      <div className="px-4 pb-2 flex items-center gap-2">
+                        {DRAW_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => toggleDrawColor(color)}
+                            className="h-6 w-6 rounded-full border transition-transform hover:scale-110 cursor-pointer"
+                            style={{
+                              backgroundColor: color,
+                              borderColor: drawColor === color ? "var(--accent-color)" : "color-mix(in srgb, var(--border-color) 92%, transparent)",
+                              boxShadow: drawColor === color ? "0 0 0 2px color-mix(in srgb, var(--accent-color) 18%, transparent)" : "none",
+                            }}
+                            title={`Set draw color ${color}`}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        onClick={toggleEraserMode}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <span className="flex items-center gap-3"><Eraser size={15} /> Eraser mode</span>
+                        {drawEnabled && drawMode === "erase" && <Check size={14} className="text-[var(--accent-color)]" />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          clearDrawings();
+                          setShowDropdown(false);
+                          setMenuView("main");
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={15} /> Clear drawings
+                      </button>
+                    </>
                   ) : menuView === "more" ? (
                     <>
                       <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] font-bold  hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
                         <ChevronLeft size={14} /> More
                       </button>
                       <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      <Link
+                        href="/typing-test"
+                        onClick={() => {
+                          setShowDropdown(false);
+                          setMenuView("main");
+                        }}
+                        className="w-full px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors"
+                      >
+                        <Keyboard size={15} /> Typing Test
+                      </Link>
                       <Link
                         href="/about"
                         onClick={() => {
