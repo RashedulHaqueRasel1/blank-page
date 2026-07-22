@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Poppins, IBM_Plex_Sans, Cousine, Lora } from "next/font/google";
 import "./globals.css";
 import MainProviders from "@/Providers/MainProviders";
 import Provider from "@/Providers/Provider";
 import { Toaster } from "sonner";
+import PwaInstallPrompt from "@/components/website/Common/PwaInstallPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,9 +41,26 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Blank Notes",
-  description:
-    "Blank Notes for writing",
+  title: "Blank Notes — Minimalist Writing & Notes",
+  description: "A minimalist, distraction-free note-taking and publishing web application.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Blank Notes",
+  },
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#121212",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -51,13 +69,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} ${ibmPlexSans.variable} ${cousine.variable} ${lora.variable} antialiased`}
       >
         <MainProviders>
           <Provider> {children} </Provider>
         </MainProviders>
+        <PwaInstallPrompt />
         <Toaster position="top-right" closeButton />
       </body>
     </html>
