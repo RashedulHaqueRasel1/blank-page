@@ -1,7 +1,13 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   images: {
-    domains: ["img.freepik.com"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "img.freepik.com",
+      },
+    ],
   },
   async headers() {
     return [
@@ -39,4 +45,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
