@@ -5,6 +5,8 @@ const CODE_HINT_PATTERNS = [
   /^\s*(GET|POST|PUT|PATCH|DELETE)\s+\/\S+/m,
   /=>/,
   /[{;}]/,
+  /^\s*#{1,6}\s+/m,
+  /^\s*[-*+]\s+/m,
 ];
 
 const escapeHtml = (value: string) =>
@@ -77,6 +79,48 @@ const highlightCssLike = (code: string) => {
   );
 };
 
+const highlightMarkdownLike = (code: string) => {
+  let highlighted = code;
+
+  // Highlight headers (# Header)
+  highlighted = highlighted.replace(
+    /^(&gt;|\s*)*(#{1,6}\s+[^\n]+)/gm,
+    '<span class="token-tag font-bold">$2</span>'
+  );
+
+  // Highlight bold (**bold**)
+  highlighted = highlighted.replace(
+    /(\*\*|__)(.*?)\1/g,
+    '<span class="token-keyword font-bold">$2</span>'
+  );
+
+  // Highlight inline code (`code`)
+  highlighted = highlighted.replace(
+    /(`[^`\n]+`)/g,
+    '<span class="token-string">$1</span>'
+  );
+
+  // Highlight links [text](url)
+  highlighted = highlighted.replace(
+    /(\[[^\]]+\])(\([^)]+\))/g,
+    '<span class="token-attr">$1</span><span class="token-comment">$2</span>'
+  );
+
+  // Highlight list bullets (- item, * item, 1. item)
+  highlighted = highlighted.replace(
+    /^(\s*)([-*+]|\d+\.)(\s+)/gm,
+    '$1<span class="token-punctuation">$2</span>$3'
+  );
+
+  // Highlight horizontal rules (--- or ***)
+  highlighted = highlighted.replace(
+    /^(\s*[-*_]{3,}\s*)$/gm,
+    '<span class="token-punctuation">$1</span>'
+  );
+
+  return highlighted;
+};
+
 const highlightGenericCode = (code: string) => {
   let highlighted = code;
 
@@ -105,6 +149,10 @@ const highlightGenericCode = (code: string) => {
 
 const highlightCode = (rawCode: string) => {
   const escapedCode = escapeHtml(rawCode);
+  if (/^\s*#\s+|^\s*#{1,6}\s+|\b(README|Table of Contents|Getting Started|Overview)\b/i.test(rawCode)) {
+    return highlightMarkdownLike(escapedCode);
+  }
+
   if ((/^\s*[{[]/.test(rawCode) && /":/.test(rawCode)) || /^\s*(GET|POST|PUT|PATCH|DELETE)\s+\/\S+/m.test(rawCode)) {
     return highlightJsonLike(escapedCode);
   }
@@ -121,6 +169,8 @@ const highlightCode = (rawCode: string) => {
 };
 
 const detectCodeLabel = (code: string) => {
+  if (/^\s*#\s+|^\s*#{1,6}\s+|^\s*#\s+[\s\S]*\b(README|Table of Contents|Overview|Getting Started|Installation)\b/i.test(code) || /^\s*#\s+/m.test(code)) return "README.md";
+  if (/^(\s*#{1,6}\s+|^\s*[-*+]\s+\[[ x]\]|^\s*```)/m.test(code)) return "MARKDOWN";
   if (/^\s*[{[]/.test(code) && /":/.test(code)) return "JSON";
   if (/^\s*(GET|POST|PUT|PATCH|DELETE)\s+\/\S+/m.test(code)) return "API";
   if (/^\s*<\/?[a-z]/im.test(code)) return "HTML";
@@ -152,6 +202,10 @@ const syncCodeBlockLayout = (block: HTMLElement) => {
 export const isLikelyCodeSnippet = (text: string) => {
   const normalized = text.replace(/\r\n/g, "\n").trim();
   if (!normalized) return false;
+
+  if (/^#\s+|^\s*#{1,6}\s+|\b(README|Table of Contents|Getting Started|Overview)\b/i.test(normalized) && normalized.split("\n").length >= 2) {
+    return true;
+  }
 
   const lines = normalized.split("\n");
   if (lines.length >= 2) {
@@ -200,6 +254,89 @@ export const createCodeBlockHtml = (rawCode: string) => {
     "</div>",
     "<p><br></p>",
   ].join("");
+};
+
+export const createReadmeTemplateHtml = () => {
+  const readmeContent = `# 📝 Project Title
+
+A concise and compelling description of your project. Explain what it does, why it exists, and the key problems it solves.
+
+---
+
+## 📑 Table of Contents
+1. [Overview](#-overview)
+2. [Key Features](#-key-features)
+3. [Folder Structure](#-folder-structure)
+4. [Getting Started](#-getting-started)
+5. [Environment Variables](#-environment-variables)
+6. [License](#-license)
+
+---
+
+## 🚀 Overview
+
+Provide a high-level technical summary of the project architecture, target audience, and primary technologies used.
+
+---
+
+## ✨ Key Features
+
+- **Feature 1**: Detailed explanation of the first awesome feature.
+- **Feature 2**: Detailed explanation of the second key capability.
+- **Feature 3**: High performance and responsive design out of the box.
+
+---
+
+## 📁 Folder Structure
+
+\`\`\`text
+project-root/
+├── src/
+│   ├── components/    # Reusable UI components
+│   ├── pages/         # Application pages and routes
+│   └── utils/         # Helper functions and hooks
+├── public/            # Static assets
+├── README.md          # Project documentation
+└── package.json       # Dependencies and scripts
+\`\`\`
+
+---
+
+## ⚡ Getting Started
+
+### Prerequisites
+Make sure you have Node.js (v18+) and npm/pnpm installed.
+
+### Installation
+\`\`\`bash
+# Clone the repository
+git clone https://github.com/username/project-name.git
+
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
+\`\`\`
+
+---
+
+## 🔑 Environment Variables
+
+Create a \`.env.local\` file in the root directory and configure:
+
+\`\`\`env
+NEXT_PUBLIC_API_URL=https://api.example.com
+DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+\`\`\`
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.`;
+
+  return createCodeBlockHtml(readmeContent);
 };
 
 export const copyCodeBlockFromTarget = async (target: HTMLElement) => {
