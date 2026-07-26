@@ -18,8 +18,11 @@ import {
   Search,
   Pencil,
   Eraser,
-  Square
-  , Keyboard
+  Square,
+  Keyboard,
+  FileCode,
+  Code,
+  Download
 } from "lucide-react";
 import PublishModal from "@/components/website/PageSections/HomePage/Editor/PublishModal";
 
@@ -182,6 +185,29 @@ const removeDocFromDB = async (id: string): Promise<void> => {
     tx.onerror = () => reject(tx.error);
   });
 };
+
+const isDocEmpty = (doc: EditorDocument): boolean => {
+  let content = doc.content || "";
+  if (typeof window !== "undefined") {
+    const activeIdInStorage = localStorage.getItem("active_doc_id");
+    if (doc.id === activeIdInStorage) {
+      const editorEl = document.querySelector('[contenteditable="true"]');
+      if (editorEl) {
+        content = editorEl.innerHTML || "";
+      }
+    }
+  }
+  if (!content || !content.trim()) return true;
+  if (typeof window !== "undefined") {
+    const parsed = new DOMParser().parseFromString(content, "text/html");
+    const text = parsed.body.textContent || "";
+    const hasMedia = parsed.body.querySelector("img, svg, canvas, iframe, video, audio") !== null;
+    return text.trim() === "" && !hasMedia;
+  }
+  const text = content.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+  return text === "";
+};
+
 
 const restoreDocsToDB = async (remoteDocs: EditorDocument[]): Promise<{ restoredCount: number; activeId: string | null }> => {
   if (remoteDocs.length === 0) return { restoredCount: 0, activeId: null };
@@ -1071,6 +1097,12 @@ export default function Navbar() {
 
   const handleCreateNewDoc = async (title = "Untitled", navigateToEditor = true) => {
     try {
+      const docs = await fetchAllDocs();
+      const existingEmptyDoc = docs.find((d) => isDocEmpty(d));
+      if (existingEmptyDoc) {
+        handleSwitchDoc(existingEmptyDoc.id, false, navigateToEditor);
+        return;
+      }
       const newDoc = await createDocInDB(title);
       handleSwitchDoc(newDoc.id, false, navigateToEditor);
       if (backupEnabled) setTimeout(() => syncBackupToCloud(false), 0);
@@ -2686,12 +2718,43 @@ export default function Navbar() {
                         <div className="flex items-center gap-3"><Pencil size={15} /> Draw</div>
                         <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
                       </button>
+                      <button onClick={() => setMenuView("templates")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3"><FileCode size={15} /> Insert Template</div>
+                        <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
+                      </button>
 
                       <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
 
                       <button onClick={() => setMenuView("more")} className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors">
                         <div className="flex items-center gap-3"><Info size={15} /> More</div>
                         <ChevronRight size={14} className="ml-auto opacity-30 group-hover:opacity-60 transition-opacity" />
+                      </button>
+                    </>
+                  ) : menuView === "templates" ? (
+                    <>
+                      <button onClick={() => setMenuView("main")} className="w-full text-left px-4 py-2.5 text-[13px] font-bold opacity-30 hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-all cursor-pointer">
+                        <ChevronLeft size={14} /> Templates
+                      </button>
+                      <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent("insert-readme-template"));
+                          setShowDropdown(false);
+                          setMenuView("main");
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-3"><FileCode size={15} /> README.md Template</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent("insert-code-template"));
+                          setShowDropdown(false);
+                          setMenuView("main");
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-3"><Code size={15} /> Code Block</div>
                       </button>
                     </>
                   ) : menuView === "themes" ? (
@@ -2775,6 +2838,16 @@ export default function Navbar() {
                       >
                         <Keyboard size={15} /> Typing Test
                       </Link>
+                      <button
+                        onClick={() => {
+                          setShowDropdown(false);
+                          setMenuView("main");
+                          window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center gap-3 transition-colors cursor-pointer"
+                      >
+                        <Download size={15} /> Download App
+                      </button>
                       <Link
                         href="/about"
                         onClick={() => {

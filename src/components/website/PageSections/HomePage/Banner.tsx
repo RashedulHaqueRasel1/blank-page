@@ -7,7 +7,7 @@ import TranslationModal from "./Editor/TranslationModal";
 import FirstVisitCelebration from "@/components/website/Common/FirstVisitCelebration";
 import DrawOverlay from "@/components/website/Common/DrawOverlay";
 import { TYPING_LANGUAGES } from "@/lib/typing-test";
-import { copyCodeBlockFromTarget, createCodeBlockHtml, deleteCodeBlockFromTarget, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
+import { copyCodeBlockFromTarget, createCodeBlockHtml, createReadmeTemplateHtml, deleteCodeBlockFromTarget, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
 import { getTextareaSelectionRect } from "@/lib/textarea-selection";
 
 const DB_NAME = "EditorDB";
@@ -377,6 +377,26 @@ export default function Banner() {
     window.addEventListener("editor-draw-update", handleDrawUpdate);
     window.addEventListener("editor-draw-clear", handleDrawClear);
 
+    const handleInsertReadme = () => {
+      const readmeHtml = createReadmeTemplateHtml();
+      document.execCommand("insertHTML", false, readmeHtml);
+      if (editorRef.current) {
+        initializeCodeBlocks(editorRef.current, true);
+        setContent(editorRef.current.innerHTML);
+      }
+    };
+    const handleInsertCode = () => {
+      const codeHtml = createCodeBlockHtml("// Write your code here...\nconsole.log('Hello World!');");
+      document.execCommand("insertHTML", false, codeHtml);
+      if (editorRef.current) {
+        initializeCodeBlocks(editorRef.current, true);
+        setContent(editorRef.current.innerHTML);
+      }
+    };
+
+    window.addEventListener("insert-readme-template", handleInsertReadme);
+    window.addEventListener("insert-code-template", handleInsertCode);
+
     const serverUrl = process.env.NEXT_PUBLIC_API_URL;
     if (serverUrl) {
       let socketUrl = serverUrl;
@@ -402,6 +422,8 @@ export default function Banner() {
       window.removeEventListener("editor-sound-update", handleSoundUpdate);
       window.removeEventListener("editor-draw-update", handleDrawUpdate);
       window.removeEventListener("editor-draw-clear", handleDrawClear);
+      window.removeEventListener("insert-readme-template", handleInsertReadme);
+      window.removeEventListener("insert-code-template", handleInsertCode);
     };
   }, []);
 

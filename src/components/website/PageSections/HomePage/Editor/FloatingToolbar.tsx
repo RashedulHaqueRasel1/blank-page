@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Copy, Check, Languages, Loader2 } from "lucide-react";
+import { Copy, Check, Languages, Loader2, FileCode } from "lucide-react";
 
 interface FloatingToolbarProps {
   show: boolean;
@@ -88,6 +88,15 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         ) : (
           <Copy size={16} />
         )}
+      </button>
+
+      {/* Insert README Template Button */}
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent("insert-readme-template"))}
+        className="p-1.5 hover:bg-[var(--border-color)] rounded-lg transition-colors cursor-pointer text-[var(--foreground)] opacity-60 hover:opacity-100"
+        title="Insert README.md Template"
+      >
+        <FileCode size={16} />
       </button>
 
       {/* Translation Section */}

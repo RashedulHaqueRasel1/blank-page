@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Shield, Edit, AlertCircle, Clock, ArrowLeft, Loader2, Check,
   Volume2, VolumeX, MoreHorizontal, Palette, Type, ChevronLeft,
-  ChevronRight, Maximize2, Eye, EyeOff, Copy, SquarePen, FileText, Info, BellRing, X, Pencil, Eraser, Trash2
+  ChevronRight, Maximize2, Eye, EyeOff, Copy, SquarePen, FileText, Info, BellRing, X, Pencil, Eraser, Trash2, Download
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -1311,6 +1311,16 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
                       <ChevronLeft size={14} /> More
                     </button>
                     <div className="h-[1px] bg-[var(--border-color)] my-1.5" />
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        setMenuView("main");
+                        window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-[var(--editor-text)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] flex items-center group cursor-pointer transition-colors"
+                    >
+                      <span className="flex items-center gap-3"><Download size={15} /> Download App</span>
+                    </button>
                     <Link
                       href="/about"
                       onClick={() => {
