@@ -2,6 +2,9 @@ import React from "react";
 import ClientPublishedPage from "@/components/website/PageSections/ClientPublishedPage/ClientPublishedPage";
 import { headers } from "next/headers";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface PageProps {
   params: Promise<{ customUrl: string }>;
 }

@@ -7,7 +7,7 @@ import TranslationModal from "./Editor/TranslationModal";
 import FirstVisitCelebration from "@/components/website/Common/FirstVisitCelebration";
 import DrawOverlay from "@/components/website/Common/DrawOverlay";
 import { TYPING_LANGUAGES } from "@/lib/typing-test";
-import { copyCodeBlockFromTarget, createCodeBlockHtml, createReadmeTemplateHtml, deleteCodeBlockFromTarget, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
+import { copyCodeBlockFromTarget, createCodeBlockHtml, createReadmeTemplateHtml, deleteCodeBlockFromTarget, handleCodeTabSwitch, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
 import { getTextareaSelectionRect } from "@/lib/textarea-selection";
 
 const DB_NAME = "EditorDB";
@@ -301,6 +301,14 @@ export default function Banner() {
 
     const handleCodeActions = async (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (handleCodeTabSwitch(target)) {
+        event.preventDefault();
+        setContent(editorNode.innerHTML);
+        return;
+      }
+
       const copyButton = target?.closest("[data-code-copy-button]") as HTMLElement | null;
       if (copyButton && editorNode.contains(copyButton)) {
         event.preventDefault();

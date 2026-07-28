@@ -311,6 +311,7 @@
   margin: 0;
   overflow-x: auto;
   position: relative;
+  border-radius: 0 0 12px 12px;
 }
 
 .bn-code-block__preview,
@@ -318,50 +319,53 @@
   grid-area: 1 / 1;
   width: 100%;
   min-height: 100%;
-  margin: 0;
-  padding: 1.2rem 1rem 1.3rem;
-  border: 0;
-  box-sizing: border-box;
-  font-family: var(--font-cousine), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.92rem;
-  line-height: 1.7;
-  letter-spacing: 0;
-  word-spacing: normal;
-  tab-size: 2;
-  -moz-tab-size: 2;
-  white-space: pre;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
+  margin: 0 !important;
+  padding: 1.2rem 1rem 1.3rem !important;
+  border: 0 !important;
+  box-sizing: border-box !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 0.92rem !important;
+  line-height: 1.7 !important;
+  letter-spacing: 0px !important;
+  word-spacing: 0px !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
 }
 
 .bn-code-block__preview {
   pointer-events: none;
-  overflow: hidden;
+  overflow: hidden !important;
   color: color-mix(in srgb, var(--editor-text) 92%, transparent);
 }
 
 .bn-code-block__preview code {
-  display: block;
+  display: block !important;
   min-height: 1.4rem;
-  margin: 0;
-  padding: 0;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
-  white-space: inherit;
-  tab-size: inherit;
-  color: inherit;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  white-space: pre !important;
+  word-break: normal !important;
+  tab-size: inherit !important;
+  color: inherit !important;
 }
 
 .bn-code-block__editor {
   resize: none;
   background: transparent;
-  color: transparent;
-  caret-color: var(--accent-color, var(--editor-text));
+  color: transparent !important;
+  caret-color: var(--accent-color, #3b82f6);
   outline: none;
-  overflow: auto;
-  -webkit-text-fill-color: transparent;
+  overflow: hidden !important;
+  -webkit-text-fill-color: transparent !important;
 }
 
 .bn-code-block__editor:not([readonly]) {
@@ -369,9 +373,9 @@
 }
 
 .bn-code-block__editor::selection {
-  background: var(--accent-color, #3b82f6);
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+  background: rgba(59, 130, 246, 0.35) !important;
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
 }
 
 .bn-code-block__editor::-moz-selection {
@@ -425,4 +429,142 @@
   .bn-code-block pre {
     padding-inline: 0.85rem;
   }
+}
+
+/* Code / Preview Toggle Tabs & Rendered Markdown Styles */
+.bn-code-block__toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
+  background: color-mix(in srgb, var(--editor-bg) 60%, transparent);
+  margin-right: 4px;
+}
+
+.bn-code-block__toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  height: 1.7rem;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--editor-text) 55%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.bn-code-block__toggle-btn:hover {
+  color: var(--editor-text);
+}
+
+.bn-code-block__toggle-btn--active {
+  background: var(--accent-color, #3b82f6) !important;
+  color: var(--editor-bg, #ffffff) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.bn-code-block__rendered-preview {
+  padding: 1.2rem 1.4rem;
+  color: var(--editor-text);
+  line-height: 1.7;
+  font-size: 0.95rem;
+  overflow-x: auto;
+}
+
+.bn-code-block__rendered-preview .bn-md-h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-top: 1rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  padding-bottom: 0.4rem;
+}
+
+.bn-code-block__rendered-preview .bn-md-h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 0.9rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  padding-bottom: 0.3rem;
+}
+
+.bn-code-block__rendered-preview .bn-md-h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+.bn-code-block__rendered-preview .bn-md-h4,
+.bn-code-block__rendered-preview .bn-md-h5,
+.bn-code-block__rendered-preview .bn-md-h6 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 0.7rem;
+  margin-bottom: 0.3rem;
+}
+
+.bn-code-block__rendered-preview .bn-md-p {
+  margin-bottom: 0.8rem;
+}
+
+.bn-code-block__rendered-preview .bn-md-ul,
+.bn-code-block__rendered-preview .bn-md-ol {
+  margin-left: 1.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.bn-code-block__rendered-preview .bn-md-ul {
+  list-style-type: disc;
+}
+
+.bn-code-block__rendered-preview .bn-md-ol {
+  list-style-type: decimal;
+}
+
+.bn-code-block__rendered-preview .bn-md-quote {
+  border-left: 3px solid var(--accent-color, #3b82f6);
+  padding-left: 0.8rem;
+  margin-left: 0;
+  margin-bottom: 0.8rem;
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.bn-code-block__rendered-preview .bn-md-hr {
+  border: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--border-color) 80%, transparent);
+  margin: 1.2rem 0;
+}
+
+.bn-code-block__rendered-preview .bn-md-inline-code {
+  background: color-mix(in srgb, var(--editor-text) 10%, transparent);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.88em;
+}
+
+.bn-code-block__rendered-preview .bn-md-code-block {
+  background: color-mix(in srgb, var(--editor-text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  margin-bottom: 0.8rem;
+  font-family: monospace;
+  font-size: 0.88em;
+}
+
+.bn-code-block__rendered-preview .bn-md-link {
+  color: var(--accent-color, #3b82f6);
+  text-decoration: underline;
 }
