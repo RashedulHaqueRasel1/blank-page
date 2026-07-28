@@ -331,14 +331,26 @@ export default function Navbar() {
     const digit = value.replace(/\D/g, "").slice(-1);
     const otp = profileOtp.padEnd(6, " ").slice(0, 6).split("");
     otp[index] = digit || " ";
-    setProfileOtp(otp.join(""));
+    const newOtp = otp.join("");
+    setProfileOtp(newOtp);
     if (digit && index < 5) {
       otpInputRefs.current[index + 1]?.focus();
+    }
+
+    const cleanOtp = newOtp.replace(/\s/g, "");
+    if (/^\d{6}$/.test(cleanOtp)) {
+      handleVerifyProfileEmail(cleanOtp);
     }
   };
 
   const handleOtpKeyDown = (index: number, e: ReactKeyboardEvent<HTMLInputElement>) => {
     const otp = profileOtp.padEnd(6, " ").slice(0, 6).split("");
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (isProfileOtpValid) handleVerifyProfileEmail();
+      return;
+    }
 
     if (e.key === "Backspace") {
       e.preventDefault();
@@ -378,6 +390,10 @@ export default function Navbar() {
     const pastedOtp = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     setProfileOtp(pastedOtp.padEnd(6, " "));
     otpInputRefs.current[Math.min(pastedOtp.length, 5)]?.focus();
+
+    if (/^\d{6}$/.test(pastedOtp)) {
+      handleVerifyProfileEmail(pastedOtp);
+    }
   };
 
   const handleSubmitProfileEmail = async () => {
@@ -411,8 +427,9 @@ export default function Navbar() {
     }
   };
 
-  const handleVerifyProfileEmail = async () => {
-    if (!isProfileOtpValid || isProfileSubmitting) return;
+  const handleVerifyProfileEmail = async (otpCodeOverride?: string | unknown) => {
+    const codeToVerify = typeof otpCodeOverride === "string" ? otpCodeOverride.trim() : profileOtp.replace(/\s/g, "");
+    if (!/^\d{6}$/.test(codeToVerify) || isProfileSubmitting) return;
 
     setIsProfileSubmitting(true);
     setProfileError("");
@@ -420,7 +437,7 @@ export default function Navbar() {
       const res = await fetch("/api/subscribers/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: profileEmail.trim(), code: profileOtp.trim() }),
+        body: JSON.stringify({ email: profileEmail.trim(), code: codeToVerify }),
       });
       const data = await res.json();
 
@@ -446,6 +463,7 @@ export default function Navbar() {
       setIsProfileSubmitting(false);
     }
   };
+
 
   // Tab states: 'local' (drafts) or 'published' (pages in MongoDB)
   const [sidebarTab, setSidebarTab] = useState<"local" | "published">("local");
@@ -1827,14 +1845,27 @@ export default function Navbar() {
                 </div>
                 {profileDevCode && (
                   <div
-                    className="mt-5 rounded-xl border px-4 py-3 text-[12px] leading-5"
+                    className="mt-5 flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-[12px] leading-5"
                     style={{
                       background: "color-mix(in srgb, var(--editor-text) 4%, transparent)",
                       borderColor: "var(--border-color)",
                     }}
                   >
-                    SMTP is not configured right now. Use test otp.{" "}
-                    <span className="font-mono text-[14px] font-bold tracking-[0.2em]">{profileDevCode}</span>
+                    <div>
+                      Test OTP:{" "}
+                      <span className="font-mono text-[14px] font-bold tracking-[0.2em]">{profileDevCode}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileOtp(profileDevCode);
+                        handleVerifyProfileEmail(profileDevCode);
+                      }}
+                      className="shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-opacity hover:opacity-100 cursor-pointer"
+                      style={{ borderColor: "var(--border-color)" }}
+                    >
+                      Auto Fill
+                    </button>
                   </div>
                 )}
                 <label className="mt-6 block text-[12px] font-semibold opacity-60" htmlFor="profile-otp">
@@ -1875,7 +1906,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   disabled={!isProfileOtpValid || isProfileSubmitting}
-                  onClick={handleVerifyProfileEmail}
+                  onClick={() => handleVerifyProfileEmail()}
                   className="mt-4 w-full rounded-xl py-3 text-[14px] font-bold transition-all active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
                   style={{ background: "var(--accent-color)", color: "var(--editor-bg)" }}
                 >
