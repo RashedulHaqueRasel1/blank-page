@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 
 export async function POST(request: Request) {
   try {
@@ -23,6 +24,11 @@ export async function POST(request: Request) {
     // Only return the necessary public fields to the frontend
     // to prevent sensitive info (ip, userId) from appearing in the network tab.
     if (response.ok && data.data) {
+      try {
+        revalidatePath(`/${data.data.customUrl}`);
+      } catch (e) {
+        // Cache revalidation is best-effort
+      }
       return NextResponse.json({
         success: true,
         data: {

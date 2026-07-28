@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 
 interface RouteParams {
   params: Promise<{ customUrl: string }>;
@@ -41,6 +42,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     
     // Prevent echoing back the full updated page data in the network tab
     if (response.ok) {
+      try {
+        revalidatePath(`/${customUrl}`);
+      } catch (e) { }
       return NextResponse.json({ success: true, message: "Saved successfully" }, { status: response.status });
     }
     
@@ -66,6 +70,9 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     });
     
     const data = await response.json();
+    try {
+      revalidatePath(`/${customUrl}`);
+    } catch (e) { }
     return NextResponse.json(data, { status: response.status });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
@@ -92,6 +99,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const data = await response.json();
     
     if (response.ok) {
+      try {
+        revalidatePath(`/${customUrl}`);
+      } catch (e) { }
       return NextResponse.json({ success: true, message: "Page updated successfully" }, { status: response.status });
     }
     

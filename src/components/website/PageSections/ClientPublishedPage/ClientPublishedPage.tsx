@@ -13,7 +13,7 @@ import FloatingToolbar from "@/components/website/PageSections/HomePage/Editor/F
 import TranslationModal from "@/components/website/PageSections/HomePage/Editor/TranslationModal";
 import DrawOverlay from "@/components/website/Common/DrawOverlay";
 import { TYPING_LANGUAGES } from "@/lib/typing-test";
-import { copyCodeBlockFromTarget, createCodeBlockHtml, deleteCodeBlockFromTarget, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
+import { copyCodeBlockFromTarget, createCodeBlockHtml, deleteCodeBlockFromTarget, handleCodeTabSwitch, initializeCodeBlocks, isLikelyCodeSnippet, syncCodeBlockScroll, updateCodeBlockPresentation } from "@/lib/code-blocks";
 import { getTextareaSelectionRect } from "@/lib/textarea-selection";
 
 export interface ClientPublishedPageProps {
@@ -289,18 +289,13 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
     if (!pageData?.isEditable || isApplyingRemoteRef.current) return;
     if (!socketRef.current?.connected) return;
 
-    const operation = createStringOperation(syncedContentRef.current, newContent);
-    if (!operation) return;
+    if (syncedContentRef.current === newContent) return;
 
-    const opId = `${socketRef.current?.id || "local"}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    localOperationIdsRef.current.add(opId);
     setIsSaving(true);
-    socketRef.current?.emit("collab-operation", {
-      ...operation,
-      opId,
+    socketRef.current.emit("edit-page", {
       customUrl,
-      baseVersion: documentVersionRef.current,
-    } satisfies CollaborativeOperation);
+      content: newContent,
+    });
 
     syncedContentRef.current = newContent;
   };
@@ -357,10 +352,11 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
       documentVersionRef.current = operation.version;
       setIsSaving(false);
+
       if (localOperationIdsRef.current.has(operation.opId)) {
         localOperationIdsRef.current.delete(operation.opId);
-        if (syncedContentRef.current !== operation.content) {
-          applyCollaborativeContent(operation.content);
+        if (localOperationIdsRef.current.size === 0 && editorRef.current) {
+          syncedContentRef.current = editorRef.current.innerHTML;
         }
         return;
       }
@@ -712,6 +708,17 @@ export default function ClientPublishedPage({ customUrl, initialData }: ClientPu
 
     const handleCodeActions = async (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (handleCodeTabSwitch(target)) {
+        event.preventDefault();
+        const nextContent = editorNode.innerHTML;
+        setContent(nextContent);
+        sendCollaborativeEdit(nextContent);
+        triggerAutosave(nextContent);
+        return;
+      }
+
       const copyButton = target?.closest("[data-code-copy-button]") as HTMLElement | null;
       if (copyButton && editorNode.contains(copyButton)) {
         event.preventDefault();
